@@ -3,6 +3,7 @@ import type { ProviderAdapter } from './provider-adapter';
 
 export const typesafeDirectAdapter: ProviderAdapter = {
   id: 'typesafe',
+  model: 'jev-latest',
   buildRequest: (key, state, questions) => ({
     url: 'https://api.typesafe.ai/v1/systemone',
     headers: {

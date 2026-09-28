@@ -19,4 +19,18 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      # Offline unit tests. They import the extension's TypeScript sources through
+      # Node's type stripping (scripts/ts-loader.mjs) and touch no network, so they
+      # are safe to run on every push. Needs node >= 22.6.
+      - run: pnpm test:unit
+      # Illustrative offline evaluation report. It never contacts a provider and
+      # has no assertions; it exists so the metric plumbing keeps working.
+      - run: pnpm eval:rules
       - run: pnpm build
+      # Use the full Chromium executable (rather than headless_shell), which
+      # supports loading an unpacked MV3 extension and its service worker.
+      - run: node node_modules/playwright-core/cli.js install --with-deps chromium
+      # Static X fixtures and mocked Jev responses; no real provider is called.
+      # A missing browser or extension worker fails in CI rather than passing.
+      - run: pnpm e2e

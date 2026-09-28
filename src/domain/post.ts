@@ -74,3 +74,37 @@ export function isPost(value: unknown): value is Post {
     typeof record.truncated === 'boolean'
   );
 }
+
+/**
+ * The single definition of "what a judgement depends on" for one post. Every
+ * field that can change the compiled prompt or a local decision is included;
+ * cosmetic and volatile fields (avatar image, relative time) are not, because
+ * they change on their own and must not invalidate a result.
+ *
+ * The score cache is keyed with this and the feed compares it, so a post whose
+ * text was edited, whose quote or parent context changed, or whose DOM cell was
+ * reused for a different post can never be served a stale answer.
+ */
+export function postContentKey(post: Post): string {
+  return JSON.stringify([
+    post.kind,
+    post.own,
+    post.promoted,
+    post.name,
+    post.handle,
+    post.text,
+    post.truncated,
+    post.quotedName,
+    post.quotedText,
+    post.hasVideo,
+    post.imageUrls,
+    post.thread,
+    post.parent ? [post.parent.id, post.parent.handle, post.parent.text] : null,
+  ]);
+}
+
+/** True when nothing a judgement depends on changed, including quote and parent
+ * context and same-length edits to the body. */
+export function samePostContent(a: Post, b: Post): boolean {
+  return postContentKey(a) === postContentKey(b);
+}

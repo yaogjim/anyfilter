@@ -1,4 +1,5 @@
 import type { ParentPost, Post } from '../domain/post';
+import { hashString } from '../domain/rule';
 import type { TimelineView as TimelineViewPort } from '../domain/timeline-view';
 import {
   readOwnHandle,
@@ -10,6 +11,7 @@ import {
 } from './timeline-reader';
 
 const PROCESSED_ATTRIBUTE = 'data-anyfilter';
+const SIGNATURE_ATTRIBUTE = 'data-anyfilter-sig';
 const POST_ID_ATTRIBUTE = 'data-anyfilter-id';
 const FLASH_CLASS = 'anyfilter-flash';
 const SLIDING_CLASS = 'anyfilter-sliding';
@@ -35,11 +37,49 @@ export function isFilteredPage(pathname: string): boolean {
   return HOME_PATH.test(pathname) || SEARCH_PATH.test(pathname) || STATUS_PATH.test(pathname);
 }
 
+/** Content fingerprint of a rendered article. It hashes the actual text rather
+ * than its length, so an equal-length rewrite is still noticed, and it folds in
+ * the quoted post, the parent context the article will be judged against, media
+ * and the "Show more" state. A change in any of these re-emits the post for a
+ * fresh judgement instead of being silently skipped. */
+function signatureOf(article: Element, parent: ParentPost | null): string {
+  const text = article.querySelector('[data-testid="tweetText"]')?.textContent ?? '';
+  const quoted =
+    article.querySelector('div[role="link"] [data-testid="tweetText"]')?.textContent ?? '';
+  const media = article.querySelectorAll('img[src*="pbs.twimg.com/media/"]').length;
+  const video = article.querySelector('video, [data-testid="videoPlayer"]') !== null ? 1 : 0;
+  const more = article.querySelector('[data-testid="tweet-text-show-more-link"]') !== null ? 1 : 0;
+  return [
+    hashString(text),
+    hashString(quoted),
+    hashString(parent?.text ?? ''),
+    media,
+    video,
+    more,
+  ].join(':');
+}
+
+/** A post whose text, media, quote, or parent has not rendered yet is not ready
+ * to be judged; it is revisited on a later scan instead of being marked done. */
+function isReadable(post: Post): boolean {
+  return (
+    post.text !== '' ||
+    post.promoted ||
+    post.imageUrls.length > 0 ||
+    post.hasVideo ||
+    post.quotedText !== '' ||
+    post.parent !== null
+  );
+}
+
 export class TimelineView implements TimelineViewPort {
   private readonly focalCache = new Map<string, ParentPost>();
   private readonly avatarByHandle = new Map<string, string>();
   private readonly waitingForView = new Map<HTMLElement, IntersectionObserver>();
   private readonly revealed = new Set<string>();
+  /** Articles that were processed before their text rendered. Never marks them
+   * as fully handled, so a later scan can pick them up. */
+  private readonly pendingText = new WeakSet<HTMLElement>();
 
   constructor() {
     this.installStyles();
@@ -64,11 +104,20 @@ export class TimelineView implements TimelineViewPort {
     if (!isFilteredPage(location.pathname)) return posts;
     const page = this.pageContext();
     for (const article of document.querySelectorAll<HTMLElement>(ARTICLE_SELECTOR)) {
-      if (article.getAttribute(PROCESSED_ATTRIBUTE) === questionsKey) continue;
-      article.setAttribute(PROCESSED_ATTRIBUTE, questionsKey);
+      const parent = this.parentFor(article, page);
+      const signature = signatureOf(article, parent);
+      const processed = article.getAttribute(PROCESSED_ATTRIBUTE) === questionsKey;
+      const unchanged = article.getAttribute(SIGNATURE_ATTRIBUTE) === signature;
+      if (processed && unchanged && !this.pendingText.has(article)) continue;
       const post = this.readArticle(article, page);
       if (!post) continue;
+      // Only mark an article once it has been read, so an article whose text has
+      // not rendered yet is retried instead of being silently skipped forever.
+      article.setAttribute(PROCESSED_ATTRIBUTE, questionsKey);
+      article.setAttribute(SIGNATURE_ATTRIBUTE, signature);
       article.setAttribute(POST_ID_ATTRIBUTE, post.id);
+      if (isReadable(post)) this.pendingText.delete(article);
+      else this.pendingText.add(article);
       posts.push(post);
     }
     return posts;
@@ -90,7 +139,11 @@ export class TimelineView implements TimelineViewPort {
   }
 
   unmark(postId: string): void {
-    for (const article of this.articlesOf(postId)) article.removeAttribute(PROCESSED_ATTRIBUTE);
+    for (const article of this.articlesOf(postId)) {
+      article.removeAttribute(PROCESSED_ATTRIBUTE);
+      article.removeAttribute(SIGNATURE_ATTRIBUTE);
+      this.pendingText.delete(article);
+    }
   }
 
   hide(postId: string, animate: boolean): void {
@@ -179,17 +232,26 @@ export class TimelineView implements TimelineViewPort {
     return { ownHandle, focal, focalArticle };
   }
 
-  private contextFor(article: Element, page: PageContext): ReadContext {
-    const { ownHandle } = page;
-    if (!page.focal) {
-      return { kind: 'post', parent: null, thread: readPostId(threadHeadOf(article)), ownHandle };
-    }
+  /** The parent context an article is judged against, or null when it is a
+   * top-level post. Shared by the reader and the content fingerprint so both
+   * agree on whether this article depends on the focal post. */
+  private parentFor(article: Element, page: PageContext): ParentPost | null {
+    if (!page.focal) return null;
     const isFocal = readPostId(article) === page.focal.id;
     const precedesFocal =
       page.focalArticle !== null &&
       (article.compareDocumentPosition(page.focalArticle) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-    if (isFocal || precedesFocal) return { kind: 'post', parent: null, thread: '', ownHandle };
-    return { kind: 'reply', parent: page.focal, thread: '', ownHandle };
+    return isFocal || precedesFocal ? null : page.focal;
+  }
+
+  private contextFor(article: Element, page: PageContext): ReadContext {
+    const parent = this.parentFor(article, page);
+    return {
+      kind: parent ? 'reply' : 'post',
+      parent,
+      thread: parent ? '' : readPostId(threadHeadOf(article)),
+      ownHandle: page.ownHandle,
+    };
   }
 
   private installStyles(): void {

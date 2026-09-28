@@ -3,6 +3,7 @@ import type { ProviderAdapter } from './provider-adapter';
 
 export const vercelGatewayAdapter: ProviderAdapter = {
   id: 'vercel',
+  model: 'typesafe-ai/jev',
   buildRequest: (key, state, questions) => ({
     url: 'https://ai-gateway.vercel.sh/v4/ai/evaluation-model',
     headers: {

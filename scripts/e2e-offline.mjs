@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
@@ -8,7 +8,7 @@ const ROOT = path.resolve(new URL('..', import.meta.url).pathname);
 const EXTENSION_DIR = path.join(ROOT, '.output', 'chrome-mv3');
 const HOME_FIXTURE = readFileSync(path.join(ROOT, 'scripts', 'fixtures', 'x-home.html'), 'utf8');
 const STATUS_FIXTURE = readFileSync(path.join(ROOT, 'scripts', 'fixtures', 'x-status.html'), 'utf8');
-const EXECUTABLE = process.env.ANYFILTER_CHROMIUM ?? '';
+const EXECUTABLE = process.env.ANYFILTER_CHROMIUM ?? chromium.executablePath();
 const FAKE_KEY = 'vck_offline_fixture_key';
 
 const MOCK_SCORES = [
@@ -40,11 +40,43 @@ async function waitFor(fn, label, timeoutMs = 8000) {
   return false;
 }
 
-const context = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), 'anyfilter-')), {
-  headless: true,
-  ...(EXECUTABLE ? { executablePath: EXECUTABLE } : {}),
-  args: [`--disable-extensions-except=${EXTENSION_DIR}`, `--load-extension=${EXTENSION_DIR}`],
-});
+/**
+ * Ends local runs with an explicit, visible skip instead of hanging. CI must
+ * fail if Chromium cannot run the suite; a skipped check is not a passing test.
+ */
+function skip(reason) {
+  console.log(`\nSKIP: ${reason}`);
+  console.log('This end-to-end suite needs a Chromium build that loads an unpacked MV3');
+  console.log('extension together with its service worker. Install one, or point at an');
+  console.log('existing binary with ANYFILTER_CHROMIUM=/path/to/chrome, then retry.');
+  console.log('The offline unit tests and the evaluation script are unaffected.');
+  process.exit(process.env.CI ? 1 : 0);
+}
+
+if (!existsSync(EXTENSION_DIR)) {
+  skip(`${EXTENSION_DIR} does not exist; run "pnpm build" first`);
+}
+
+async function launchContext() {
+  try {
+    return await chromium.launchPersistentContext(
+      mkdtempSync(path.join(tmpdir(), 'anyfilter-')),
+      {
+        headless: true,
+        ...(EXECUTABLE ? { executablePath: EXECUTABLE } : {}),
+        args: [
+          `--disable-extensions-except=${EXTENSION_DIR}`,
+          `--load-extension=${EXTENSION_DIR}`,
+        ],
+      },
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return skip(`could not launch Chromium: ${message.split('\n')[0]}`);
+  }
+}
+
+const context = await launchContext();
 
 await context.route('**/*', async (route) => {
   const url = route.request().url();
@@ -61,7 +93,12 @@ await context.route('**/*', async (route) => {
     const answers = Object.fromEntries(
       Object.keys(body.questions ?? {}).map((questionId) => [
         questionId,
-        { type: 'boolean', probability: scores[questionId] ?? 0.02 },
+        {
+          type: 'boolean',
+          probability: questionId.startsWith('custom:') && text.includes('Next.js')
+            ? 0.9
+            : scores[questionId] ?? 0.02,
+        },
       ]),
     );
     await route.fulfill({ json: { answers, usage: { inputTokens: 600, outputTokens: 100 } } });
@@ -75,7 +112,17 @@ await context.route('**/*', async (route) => {
 });
 
 let [worker] = context.serviceWorkers();
-if (!worker) worker = await context.waitForEvent('serviceworker');
+if (!worker) {
+  const found = await Promise.race([
+    context.waitForEvent('serviceworker'),
+    new Promise((resolve) => setTimeout(() => resolve(null), 8000)),
+  ]);
+  if (!found) {
+    await context.close().catch(() => undefined);
+    skip('no extension service worker appeared within 8s');
+  }
+  worker = found;
+}
 const extensionId = new URL(worker.url()).host;
 console.log(`extension ${extensionId} loaded`);
 
@@ -210,9 +257,32 @@ await feed.goto('https://x.com/notifications');
 await new Promise((resolve) => setTimeout(resolve, 800));
 check(jevCalls.length === callsBeforeConversation + 2, 'nothing is scanned on pages other than home and conversations');
 
+await feed.goto('https://x.com/home');
+const adRule = panel.locator('[data-anyfilter-rule="ads"]');
+check((await adRule.count()) === 1, 'the local ads rule is visible in Settings');
+await panel.getByRole('button', { name: 'New rule' }).click();
+const customRule = panel.locator('[data-anyfilter-rule^="custom:"]');
+check((await customRule.count()) === 1, 'a custom rule can be created');
+await customRule.getByRole('textbox', { name: 'Rule name' }).fill('Next.js benchmark posts');
+await customRule.getByRole('textbox', { name: 'Hide when' }).fill('Hide posts about Next.js benchmarks.');
+await panel.getByRole('button', { name: 'Save and apply' }).click();
+check(
+  await waitFor(() => cellHidden('cell-keep'), 'custom rule hides matching post'),
+  'saved custom rule hides a matching post through mock Jev',
+);
+await panel.getByRole('textbox', { name: 'Text to test' }).fill('Next.js benchmarks improved today');
+await panel.getByRole('button', { name: 'Test text' }).click();
+check(
+  await waitFor(async () => (await panel.getByText('Next.js benchmark posts').count()) === 1, 'preview custom result'),
+  'text preview includes the custom rule',
+);
+check(
+  await waitFor(async () => (await panel.getByText('would hide', { exact: true }).count()) >= 1, 'preview matched score'),
+  'text preview shows a matching score against the threshold',
+);
+
 await panel.setViewportSize({ width: 360, height: 900 });
 await panel.screenshot({ path: path.join(ROOT, 'tmp', 'sidepanel.png'), fullPage: true });
-await feed.goto('https://x.com/home');
 await feed.screenshot({ path: path.join(ROOT, 'tmp', 'feed.png'), fullPage: true });
 
 await context.close();

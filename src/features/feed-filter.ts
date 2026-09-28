@@ -1,16 +1,13 @@
-import {
-  allCategories,
-  questionsFor,
-  questionsKey as questionsKeyOf,
-  type Category,
-} from '../domain/category';
 import type { ClassifierPort } from '../domain/classifier-port';
 import type { ClassifyError } from '../domain/messages';
-import type { Post } from '../domain/post';
-import { activeKey, enabledCategories, type Settings } from '../domain/settings';
+import { samePostContent, type Post } from '../domain/post';
+import type { Rule } from '../domain/rule';
+import { compileRules, hasParent, type CompiledRules } from '../domain/rule-compiler';
+import { activeKey, type Settings } from '../domain/settings';
 import type { TimelineView } from '../domain/timeline-view';
-import { matchReasons, type Reason, type Scores } from '../domain/verdict';
+import { matchRuleReasons, type Reason, type Scores } from '../domain/verdict';
 import type { VerdictSink } from '../domain/verdict-sink';
+import { loadOverrides, saveOverrides } from '../infrastructure/override-store';
 
 type KnownPost =
   | { status: 'pending'; post: Post }
@@ -21,15 +18,17 @@ type KnownPost =
 const RETRYABLE_ERRORS: readonly ClassifyError[] = ['rate-limited', 'network'];
 
 function sameReasons(a: Reason[], b: Reason[]): boolean {
-  return (
-    a.length === b.length && a.every((reason, i) => reason.categoryId === b[i].categoryId)
-  );
+  return a.length === b.length && a.every((reason, i) => reason.categoryId === b[i].categoryId);
 }
 
 export class FeedFilter {
   private settings: Settings;
-  private categories: Category[] = [];
-  private questions: Record<string, string> = {};
+  private rules: Rule[] = [];
+  /** Question set for a post whose parent context is available (every enabled rule). */
+  private compiledWithParent: CompiledRules = compileRules([]);
+  /** Question set for a post with no parent context, which drops `replies` rules. */
+  private compiledWithoutParent: CompiledRules = compileRules([]);
+  /** Fingerprint of the full rule set; used to mark articles as already processed. */
   private questionsKey = '';
   private readonly known = new Map<string, KnownPost>();
   private readonly threads = new Map<string, Set<string>>();
@@ -37,6 +36,13 @@ export class FeedFilter {
   private readonly awaitingAvatar = new Set<string>();
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stopObserving: (() => void) | null = null;
+  /** Bumped on every settings change or stop so late responses from an older
+   * configuration are discarded instead of being applied to the new one. */
+  private generation = 0;
+  /** One counter per post id. A newer judgement for the same id bumps it, so an
+   * older in-flight response can never overwrite the newer task's result when a
+   * DOM cell is reused or a post is edited mid-flight. */
+  private readonly attempts = new Map<string, number>();
 
   constructor(
     private readonly view: TimelineView,
@@ -48,14 +54,36 @@ export class FeedFilter {
     this.deriveQuestions();
   }
 
+  /** Loads persisted "put back in feed" choices before the first scan. */
+  async hydrate(): Promise<void> {
+    const stored = await loadOverrides();
+    for (const [postId, shown] of stored) this.overrides.set(postId, shown);
+  }
+
   start(): void {
     this.stopObserving = this.view.onChange(() => this.scan());
     this.scan();
   }
 
   stop(): void {
+    this.generation += 1;
     this.stopObserving?.();
     this.stopObserving = null;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  /** Drops all local knowledge after a data clear: every in-flight task is
+   * invalidated (a bump of the generation makes its response a no-op) and the
+   * cached scores, overrides and reasons are forgotten. Nothing is re-scanned
+   * here, so a cleared panel stays empty instead of being immediately refilled. */
+  clear(): void {
+    this.generation += 1;
+    this.attempts.clear();
+    this.known.clear();
+    this.threads.clear();
+    this.overrides.clear();
+    this.awaitingAvatar.clear();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
   }
@@ -63,9 +91,11 @@ export class FeedFilter {
   applySettings(next: Settings): void {
     const previous = this.settings;
     this.settings = next;
+    this.generation += 1;
     this.deriveQuestions();
     const credentialsChanged =
       activeKey(previous) !== activeKey(next) || previous.provider !== next.provider;
+    this.forgetPending();
     if (credentialsChanged) this.forgetFailed(() => true);
     this.reapply();
     this.scan();
@@ -73,21 +103,25 @@ export class FeedFilter {
 
   override(postId: string, shown: boolean): void {
     this.overrides.set(postId, shown);
+    void saveOverrides(this.overrides).catch(() => undefined);
     this.apply(postId, true);
   }
 
   private deriveQuestions(): void {
-    this.categories = allCategories(this.settings.custom);
-    this.questions = questionsFor(this.categories, this.enabled());
-    this.questionsKey = questionsKeyOf(this.questions);
+    this.rules = this.settings.rules;
+    this.compiledWithParent = compileRules(this.rules);
+    this.compiledWithoutParent = compileRules(this.rules, { hasParent: false });
+    this.questionsKey = this.compiledWithParent.key;
   }
 
-  private enabled(): ReadonlySet<string> {
-    return enabledCategories(this.settings);
+  /** Picks the question set that matches the parent context a post actually has,
+   * so a `replies` rule is never asked about without a parent to judge it by. */
+  private compiledFor(post: Post): CompiledRules {
+    return hasParent(post) ? this.compiledWithParent : this.compiledWithoutParent;
   }
 
   private reasonsFor(post: Post, scores: Scores): Reason[] {
-    return matchReasons(post, scores, this.categories, this.enabled(), this.settings.threshold);
+    return matchRuleReasons(post, scores, this.rules, this.settings.threshold);
   }
 
   private scan(): void {
@@ -95,8 +129,11 @@ export class FeedFilter {
     for (const post of this.view.scan(this.questionsKey)) {
       this.remember(post);
       const known = this.known.get(post.id);
-      const stale = known?.status === 'scored' && known.questionsKey !== this.questionsKey;
-      if (!known || stale) {
+      const questionsChanged =
+        known?.status === 'scored' && known.questionsKey !== this.compiledFor(post).key;
+      const contentChanged =
+        known !== undefined && known.status !== 'pending' && !samePostContent(known.post, post);
+      if (!known || questionsChanged || contentChanged) {
         void this.evaluate(post);
         continue;
       }
@@ -126,6 +163,9 @@ export class FeedFilter {
   }
 
   private async evaluate(post: Post): Promise<void> {
+    const generation = this.generation;
+    const attempt = (this.attempts.get(post.id) ?? 0) + 1;
+    this.attempts.set(post.id, attempt);
     if (post.own) {
       this.known.set(post.id, { status: 'rule-only', post, reasons: [] });
       this.view.show(post.id);
@@ -137,9 +177,20 @@ export class FeedFilter {
       this.report(post, this.reasonsOf(post.id), 0);
       return;
     }
+    // No enabled semantic rules (or none that can apply without a parent): there
+    // is nothing to ask the provider, so keep the post local-only and free.
+    const compiled = this.compiledFor(post);
+    if (Object.keys(compiled.questions).length === 0) {
+      this.known.set(post.id, { status: 'rule-only', post, reasons: [] });
+      this.apply(post.id, true);
+      return;
+    }
     this.known.set(post.id, { status: 'pending', post });
-    const questionsKey = this.questionsKey;
-    const result = await this.classifier.classify(post, this.questions, questionsKey);
+    const questionsKey = compiled.key;
+    const result = await this.classifier.classify(post, compiled.questions, questionsKey);
+    // A newer judgement for this id, or a data clear / settings change, makes this
+    // response obsolete: it must not touch the panel, the cache or the DOM.
+    if (generation !== this.generation || this.attempts.get(post.id) !== attempt) return;
     if (!result.ok) {
       this.known.set(post.id, { status: 'failed', post, error: result.error });
       if (RETRYABLE_ERRORS.includes(result.error)) this.scheduleRetry();
@@ -200,6 +251,15 @@ export class FeedFilter {
         }
       }
       this.apply(postId, true);
+    }
+  }
+
+  private forgetPending(): void {
+    for (const [postId, known] of this.known) {
+      if (known.status === 'pending') {
+        this.known.delete(postId);
+        this.view.unmark(postId);
+      }
     }
   }
 

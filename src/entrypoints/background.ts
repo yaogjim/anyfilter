@@ -8,10 +8,16 @@ import {
 } from '../domain/panel-state';
 import { classifyPost } from '../infrastructure/classifier';
 import { updatePanelState } from '../infrastructure/panel-state-store';
+import { previewRules } from '../infrastructure/rule-preview';
 import { forgetScores } from '../infrastructure/score-cache';
+import { saveRules } from '../infrastructure/settings-store';
 import { assertNever } from '../lib/assert-never';
 
 const X_ORIGIN = 'https://x.com/';
+
+/** Bumped by `clear-data`. A classification that started before a clear must not
+ * write its failure notice into the freshly emptied panel afterwards. */
+let dataEpoch = 0;
 
 async function broadcastToX(message: RuntimeMessage): Promise<void> {
   const tabs = await chrome.tabs.query({ url: `${X_ORIGIN}*` });
@@ -25,9 +31,13 @@ async function broadcastToX(message: RuntimeMessage): Promise<void> {
 async function handle(message: RuntimeMessage): Promise<unknown> {
   switch (message.type) {
     case 'classify': {
+      const epoch = dataEpoch;
       const result = await classifyPost(message.post, message.questions, message.questionsKey);
       if (!result.ok) console.warn('[AnyFilter] classify failed:', result.error, result.detail);
-      await updatePanelState((state) => withClassifyResult(state, result, Date.now()));
+      // A clear that lands mid-flight must not be repopulated by this response.
+      if (epoch === dataEpoch) {
+        await updatePanelState((state) => withClassifyResult(state, result, Date.now()));
+      }
       return result;
     }
     case 'report':
@@ -43,9 +53,17 @@ async function handle(message: RuntimeMessage): Promise<unknown> {
       await updatePanelState((state) => withoutHiddenOfKind(state, message.kind));
       return undefined;
     case 'clear-data':
+      dataEpoch += 1;
       await forgetScores();
       await updatePanelState(() => EMPTY_PANEL_STATE);
+      // Tells every content script to drop its local state, so an in-flight
+      // judgement on the page cannot write records back after the clear.
+      await broadcastToX(message);
       return undefined;
+    case 'save-rules':
+      return saveRules(message.rules, message.expectedRevision);
+    case 'preview-rule':
+      return previewRules(message.input);
     default:
       return assertNever(message);
   }

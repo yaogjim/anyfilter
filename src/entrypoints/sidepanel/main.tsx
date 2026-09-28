@@ -15,6 +15,8 @@ const gateway: PanelGateway = {
   onSettingsChanged,
   loadPanelState,
   onPanelStateChanged,
+  saveRules: (rules, expectedRevision) => client.saveRules(rules, expectedRevision),
+  previewRule: (input) => client.previewRule(input),
   override: (postId, shown) => client.override(postId, shown),
   clearData: () => client.clearData(),
   clearHidden: (kind) => client.clearHidden(kind),

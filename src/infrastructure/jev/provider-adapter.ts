@@ -9,6 +9,7 @@ export interface ProviderRequest {
 
 export interface ProviderAdapter {
   id: ProviderId;
+  model: string;
   buildRequest(key: string, state: unknown, questions: Record<string, string>): ProviderRequest;
   parseScores(json: unknown): Scores;
   inputTokens(json: unknown): number;

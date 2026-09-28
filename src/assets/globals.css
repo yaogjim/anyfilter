@@ -87,6 +87,16 @@ body {
   transform: rotate(90deg);
 }
 
+.anyfilter-details > summary:focus-visible,
+.anyfilter-details button:focus-visible,
+.anyfilter-details input:focus-visible,
+.anyfilter-details textarea:focus-visible,
+.anyfilter-details select:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+
 @keyframes anyfilter-slide {
   from { transform: translateX(12px); opacity: 0; }
   to { transform: none; opacity: 1; }

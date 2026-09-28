@@ -1,5 +1,7 @@
 import { isEnabled, type Category } from './category';
 import type { Post } from './post';
+import type { Rule } from './rule';
+import { hasParent, matchedRuleScores, ruleApplies } from './rule-compiler';
 
 export type Scores = Record<string, number>;
 
@@ -55,4 +57,32 @@ export function reasonText(reason: Reason): string {
   return reason.categoryId === 'ads'
     ? reason.label
     : `${reason.label} ${Math.round(reason.probability * 100)}%`;
+}
+
+/** Rule-based matcher used by the feed and the preview: local rules use page
+ * signals, semantic rules use validated provider scores, and `replies`-scoped
+ * rules only apply when parent context exists. */
+export function matchRuleReasons(
+  post: Post,
+  scores: Scores,
+  rules: readonly Rule[],
+  threshold: number,
+): Reason[] {
+  const withParent = hasParent(post);
+  const matched = matchedRuleScores(rules, scores, threshold, withParent);
+  const reasons: Reason[] = [];
+  for (const rule of rules) {
+    if (!rule.enabled) continue;
+    if (rule.kind === 'local') {
+      if (ruleApplies(rule, withParent) && post.promoted) {
+        reasons.push({ categoryId: rule.id, label: rule.label, probability: 1 });
+      }
+      continue;
+    }
+    const probability = matched.get(rule.id);
+    if (probability !== undefined) {
+      reasons.push({ categoryId: rule.id, label: rule.label, probability });
+    }
+  }
+  return reasons.sort((a, b) => b.probability - a.probability);
 }

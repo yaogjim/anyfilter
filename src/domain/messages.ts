@@ -1,4 +1,5 @@
 import { isPost, type Post, type PostKind } from './post';
+import { isPreviewInput, isRule, type PreviewInput, type Rule } from './rule';
 import { isReason, isScores, type Reason, type Scores } from './verdict';
 
 export type RuntimeMessage =
@@ -6,7 +7,9 @@ export type RuntimeMessage =
   | { type: 'report'; post: Post; reasons: Reason[]; tokens: number }
   | { type: 'override'; postId: string; shown: boolean }
   | { type: 'clear-hidden'; kind: PostKind }
-  | { type: 'clear-data' };
+  | { type: 'clear-data' }
+  | { type: 'save-rules'; rules: Rule[]; expectedRevision: number }
+  | { type: 'preview-rule'; input: PreviewInput };
 
 export type ClassifyError = 'no-key' | 'rate-limited' | 'auth' | 'network' | 'bad-response';
 
@@ -58,6 +61,14 @@ export function isRuntimeMessage(value: unknown): value is RuntimeMessage {
       return record.kind === 'post' || record.kind === 'reply';
     case 'clear-data':
       return true;
+    case 'save-rules':
+      return (
+        Array.isArray(record.rules) &&
+        record.rules.every(isRule) &&
+        typeof record.expectedRevision === 'number'
+      );
+    case 'preview-rule':
+      return isPreviewInput(record.input);
     default:
       return false;
   }

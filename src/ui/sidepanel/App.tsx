@@ -1,4 +1,3 @@
-import { allCategories } from '../../domain/category';
 import type { Settings } from '../../domain/settings';
 import { Header } from './Header';
 import { HiddenGroups } from './HiddenGroups';
@@ -22,7 +21,7 @@ export function App({ gateway }: { gateway: PanelGateway }) {
   const updateSettings = (patch: Partial<Settings>): void => {
     void gateway.saveSettings({ ...current, ...patch });
   };
-  const labelOrder = allCategories(current.custom).map((category) => category.label);
+  const labelOrder = current.rules.map((rule) => rule.label);
 
   return (
     <div className="space-y-2.5 p-3">
@@ -41,6 +40,8 @@ export function App({ gateway }: { gateway: PanelGateway }) {
           onChange={updateSettings}
           onClearData={gateway.clearData}
           onClearHidden={gateway.clearHidden}
+          onSaveRules={gateway.saveRules}
+          onPreview={gateway.previewRule}
         />
       </section>
     </div>
