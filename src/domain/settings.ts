@@ -5,6 +5,7 @@ import {
   coerceRules,
   isBuiltInId,
   legacyCustomRule,
+  refreshUneditedBuiltIns,
   type Rule,
 } from './rule';
 
@@ -48,11 +49,14 @@ function normalizedRevision(value: unknown): number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
 }
 
-/** Keeps every built-in rule present while preserving stored edits by id. */
+/** Keeps every built-in rule present while preserving stored edits by id. An
+ * un-edited built-in still on the previous defaults is refreshed to the current
+ * defaults; edited and disabled rules are left exactly as stored. */
 function withBuiltIns(stored: readonly Rule[]): Rule[] {
-  const byId = new Map(stored.map((rule) => [rule.id, rule]));
+  const refreshed = refreshUneditedBuiltIns(stored);
+  const byId = new Map(refreshed.map((rule) => [rule.id, rule]));
   const builtins = builtInRules().map((builtin) => byId.get(builtin.id) ?? builtin);
-  const custom = stored.filter((rule) => rule.source === 'custom' && !isBuiltInId(rule.id));
+  const custom = refreshed.filter((rule) => rule.source === 'custom' && !isBuiltInId(rule.id));
   return [...builtins, ...custom];
 }
 

@@ -64,8 +64,8 @@ export function hashString(value: string): string {
   return hash.toString(16);
 }
 
-/** The ten built-in rules, all enabled. `include` is the existing prompt text so
- * existing behaviour is preserved exactly; `exclude` and examples start empty. */
+/** The ten built-in rules, all enabled, carrying the default condition,
+ * `exclude` and examples maintained in `category.ts`. */
 export function builtInRules(): Rule[] {
   return BUILT_IN_CATEGORIES.map((category) => ({
     id: category.id,
@@ -74,11 +74,67 @@ export function builtInRules(): Rule[] {
     kind: category.rule === 'promoted' ? 'local' : 'semantic',
     enabled: true,
     include: category.question ?? '',
-    exclude: '',
-    examplesYes: [],
-    examplesNo: [],
+    exclude: category.exclude ?? '',
+    examplesYes: [...(category.examplesYes ?? [])],
+    examplesNo: [...(category.examplesNo ?? [])],
     scope: 'all' as const,
   }));
+}
+
+/**
+ * The default `include` each built-in shipped with before structured `exclude`
+ * and examples were added. Kept only so migration can recognize a stored
+ * built-in the user never edited; the check also compares the default label,
+ * kind, scope, threshold and empty exclude/examples, so any stored edit is left
+ * exactly as-is instead of being refreshed.
+ */
+export const LEGACY_BUILT_IN_INCLUDE: Readonly<Record<string, string>> = {
+  ads: '',
+  bait: 'Is this post engagement bait — primarily asking people to reply, follow, like, comment a keyword, or introduce themselves, in order to farm interactions?',
+  promo:
+    'Is this post a promotion — selling or advertising a product, course, template, service, or newsletter?',
+  platitude:
+    'Is this post a platitude — a generic motivational or self-evident statement with no specific information?',
+  hate: 'Is this post hateful, abusive, or insulting — hate speech, slurs, dehumanizing language, personal attacks, name-calling, profanity aimed at people, or crude sexual harassment, in any language?',
+  politics:
+    'Is this post about politics — governments, parties, politicians, elections, political ideology, nationalism, geopolitics, or political outrage and culture-war arguments, in any language?',
+  nsfw: 'Is this post NSFW — sexually explicit or pornographic content, nudity, sexual acts described in text, links to adult content, or gore, in any language?',
+  porn: 'Is this sexual or porn spam, or a porn-bot lure — sexual solicitation, adult content bait, innuendo obfuscated with emoji, or slang inviting people to view adult content, in any language? Typical bot lines: English "link in bio", "check my profile", "DM me", "my OF is free", "I\'m 19 dm me"; Chinese 比我好看的没我骚, 比我骚的没我好看, 我福不黑不信你看, 我果然太涩了, 应该没人比我玩的更开了吧, 有人想锐评一下我的福嘛, 看主页, 私信; Japanese 裏垢, 裏アカ女子, セフレ, オフパコ, 見せ合い, P活, やりもく, プロフ見てね; Korean 조건만남, 오픈채팅, #조건 #ㅈㄱ, 바로 만날사람; Spanish "estoy aburrida", "busco amigos", "mira mi perfil"; Portuguese "conteúdo +18", "olha meu perfil"; French "je m\'ennuie, je peux te dm?", "coucou 🥵"; German "schreib mir direkt ❤️"; Russian интим, фото в профиле, хочешь в лс?; Arabic خاص, للتواصل, صباح الجمال يا ست الكل; Thai แอดไลน์, สาวอวบ, เจอจ่าย; Vietnamese kết bạn zalo, tìm gái xinh hẹn hò.',
+  spam: 'Is this an automated or off-topic spam reply — a bot pushing links, follow-me or DM-me bait, asking an AI to verify, a canned or copy-pasted message, or anything unrelated to the post it replies to, in any language? Typical bot lines: "follow me back", "let\'s grow together", "DM me", "join my telegram"; 繋がりましょう, フォロバ, DMください; 맞팔해요, 디엠 확인, 디엠 보내줘; "mándame dm", "te sigo", "sígueme"; "segue de volta", "me chama na dm"; ممكن خاص, راسلني, تابعني; напиши в лс, глянь лс, подпишись; takipleşelim, dm at, yaz bana; follback dong, dm aku; "DM karo", "follow back karo"; ทักมา, ทักไลน์, ฟอลแบค; inbox em, follow mình; "je peux te dm?", "mp moi", "suis-moi"; "schreib mir", "folge mir zurück".',
+  crypto: 'Is this post shilling a cryptocurrency, token, presale, airdrop, or trading signal?',
+};
+
+/** True when every default-owned field still equals the previous shipped default,
+ * i.e. the user never touched this built-in rule. A stored edit in any of these
+ * fields makes the rule ineligible for refresh. */
+function isUneditedLegacyBuiltIn(rule: Rule): boolean {
+  if (rule.source !== 'builtin') return false;
+  if (builtInKindOf(rule.id) !== rule.kind) return false;
+  const legacyInclude = LEGACY_BUILT_IN_INCLUDE[rule.id];
+  if (legacyInclude === undefined) return false;
+  const category = BUILT_IN_CATEGORIES.find((candidate) => candidate.id === rule.id);
+  if (!category) return false;
+  return (
+    rule.label === category.label &&
+    rule.include === legacyInclude &&
+    rule.exclude === '' &&
+    rule.examplesYes.length === 0 &&
+    rule.examplesNo.length === 0 &&
+    rule.scope === 'all' &&
+    rule.threshold === undefined
+  );
+}
+
+/** Refreshes stored built-in rules that still match the previous defaults to the
+ * current defaults, preserving each rule's on/off state. Edited rules and rules
+ * the user disabled are otherwise returned untouched. */
+export function refreshUneditedBuiltIns(stored: readonly Rule[]): Rule[] {
+  const defaults = new Map(builtInRules().map((rule) => [rule.id, rule]));
+  return stored.map((rule) => {
+    const next = defaults.get(rule.id);
+    if (!next || !isUneditedLegacyBuiltIn(rule)) return rule;
+    return { ...next, enabled: rule.enabled };
+  });
 }
 
 export function isBuiltInId(id: string): boolean {

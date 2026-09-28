@@ -10,7 +10,6 @@ import { RulePreview } from './RulePreview';
 import { RuleRow } from './RuleEditor';
 import { newCustomRule, rulesEqual, withRule, withoutRule } from './rules-draft';
 
-const SUBHEADING_CLASS = 'mb-1.5 mt-4 text-[13px] font-bold text-ink';
 const BUTTON_CLASS = 'rounded-lg border border-[#cfd9de] bg-white px-3 py-1.5 font-bold';
 
 type Message = { tone: 'ok' | 'error'; text: string };
@@ -35,13 +34,20 @@ export function RuleManager({
   // there are no unsaved edits, so a save from another panel can never be
   // silently overwritten: saving a stale base reports a conflict instead.
   const [baseRevision, setBaseRevision] = useState(revision);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(() => rules.find((rule) => rule.kind === 'semantic')?.id ?? rules[0]?.id ?? null);
+  const [search, setSearch] = useState('');
+  const [show, setShow] = useState<'all' | 'builtin' | 'custom'>('all');
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   // Counts user edits so a save that resolves late never clobbers newer input.
   const editSeq = useRef(0);
   const dirty = !rulesEqual(draft, rules);
+  const selected = draft.find((rule) => rule.id === openId);
+  const visibleRules = draft.filter((rule) =>
+    (show === 'all' || rule.source === show) &&
+    `${rule.label} ${rule.include} ${rule.exclude}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+  );
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -65,6 +71,8 @@ export function RuleManager({
     const rule = newCustomRule(draft);
     setDraft((current) => [...current, rule]);
     setOpenId(rule.id);
+    setShow('all');
+    setSearch('');
     setMessage(null);
   };
 
@@ -109,6 +117,9 @@ export function RuleManager({
         return;
       }
       setMessage({ tone: 'error', text: result.detail });
+    }).catch((error: unknown) => {
+      setSaving(false);
+      setMessage({ tone: 'error', text: `Could not save rules: ${error instanceof Error ? error.message : String(error)}` });
     });
   };
 
@@ -128,28 +139,83 @@ export function RuleManager({
 
   return (
     <>
-      <h3 className={SUBHEADING_CLASS}>What to hide</h3>
-      <div className="divide-y divide-line rounded-lg border border-line">
-        {draft.map((rule) => (
-          <RuleRow
-            key={rule.id}
-            rule={rule}
-            open={openId === rule.id}
-            onToggleOpen={() => setOpenId((current) => (current === rule.id ? null : rule.id))}
-            onPatch={(change) => patch(rule.id, change)}
-            onDelete={rule.source === 'custom' ? () => deleteRule(rule.id) : null}
-          />
-        ))}
-      </div>
-      <p className="mt-1 text-[11px] text-ink-2">
-        Every rule is on by default, but they have not all been accuracy-verified. Ads are decided
-        by a local page check; the rest are sent to Jev as the text you see in each editor.
-      </p>
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <button type="button" className={BUTTON_CLASS} onClick={addRule}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="m-0 text-lg font-bold text-ink">Rules</h3>
+          <p className="mt-1 text-xs text-ink-2">Choose a rule to edit its meaning. Changes stay in this tab until you save.</p>
+        </div>
+        <button type="button" className="rounded-lg bg-ink px-3 py-2 font-bold text-white" onClick={addRule}>
           New rule
         </button>
+      </div>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
+        <div className="overflow-hidden rounded-xl border border-line bg-white">
+          <div className="space-y-2 border-b border-line p-3">
+            <input
+              type="search"
+              aria-label="Search rules"
+              placeholder="Search rules…"
+              className="w-full rounded-lg border border-line px-3 py-2"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <div className="flex gap-1" role="group" aria-label="Filter rules">
+              {(['all', 'builtin', 'custom'] as const).map((source) => (
+                <button
+                  type="button"
+                  key={source}
+                  aria-pressed={show === source}
+                  onClick={() => setShow(source)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold ${show === source ? 'bg-ink text-white' : 'bg-surface text-ink-2'}`}
+                >
+                  {source === 'all' ? 'All' : source === 'builtin' ? 'Built-in' : 'Custom'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="max-h-[70vh] space-y-1 overflow-y-auto p-2" role="list" aria-label="Rules">
+            {visibleRules.map((rule) => (
+              <div key={rule.id} role="listitem" className={`flex items-center gap-2 rounded-lg px-2 py-1 ${openId === rule.id ? 'bg-surface' : 'hover:bg-surface'}`}>
+                <input
+                  type="checkbox"
+                  aria-label={`Enable ${rule.label}`}
+                  checked={rule.enabled}
+                  onChange={(event) => patch(rule.id, { enabled: event.target.checked })}
+                />
+                <button
+                  type="button"
+                  data-rule-choice={rule.id}
+                  aria-current={openId === rule.id ? 'true' : undefined}
+                  onClick={() => setOpenId(rule.id)}
+                  className="min-w-0 flex-1 py-2 text-left"
+                >
+                  <span className="block truncate text-sm font-semibold text-ink">{rule.label}</span>
+                  <span className="text-[11px] text-ink-2">{rule.kind === 'local' ? 'On-page check' : 'Jev question'} · {rule.source === 'builtin' ? 'Built-in' : 'Custom'}</span>
+                </button>
+              </div>
+            ))}
+            {visibleRules.length === 0 && <p className="px-2 text-xs text-ink-2">No rules match this search.</p>}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-xl border border-line bg-white p-4">
+          {selected ? (
+            <>
+              <p className="m-0 mb-2 text-xs text-ink-2">{selected.kind === 'local' ? 'Fixed local detector' : 'Describe the match, exclusions and examples below. You can inspect the exact question sent to Jev.'}</p>
+              <RuleRow
+                key={selected.id}
+                rule={selected}
+                open
+                onToggleOpen={() => setOpenId(null)}
+                onPatch={(change) => patch(selected.id, change)}
+                onDelete={selected.source === 'custom' ? () => deleteRule(selected.id) : null}
+              />
+            </>
+          ) : <p className="m-0 text-ink-2">Select a rule on the left to edit it.</p>}
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-ink-2">All ten built-in rules start enabled, but their accuracy has not been verified. Ads use a local page marker; text rules need an API key and send their questions to Jev.</p>
+
+      <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-white/95 p-3 shadow-sm backdrop-blur">
         <button
           type="button"
           className="rounded-lg bg-ink px-3 py-1.5 font-bold text-white disabled:opacity-40"
@@ -182,8 +248,11 @@ export function RuleManager({
         </p>
       )}
 
-      <h3 className={SUBHEADING_CLASS}>Test a text</h3>
-      <RulePreview rules={draft} threshold={threshold} onPreview={onPreview} />
+      <section className="mt-6 rounded-xl border border-line bg-white p-4" aria-label="Test a text">
+        <h3 className="m-0 mb-2 text-lg font-bold text-ink">Test a text</h3>
+        <p className="mb-4 text-xs text-ink-2">Test your current draft before saving. This sends only the text you enter to your chosen provider and does not change the feed.</p>
+        <RulePreview rules={draft} threshold={threshold} onPreview={onPreview} />
+      </section>
     </>
   );
 }

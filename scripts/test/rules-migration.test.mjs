@@ -11,10 +11,11 @@ import {
   builtInRules,
   customRuleIdFor,
   hashString,
+  LEGACY_BUILT_IN_INCLUDE,
   legacyCustomRule,
   validateRules,
 } from '../../src/domain/rule';
-import { compileRules } from '../../src/domain/rule-compiler';
+import { compileRuleQuestion, compileRules } from '../../src/domain/rule-compiler';
 import { enabledCategories, normalizeSettings, withRules } from '../../src/domain/settings';
 
 const LEGACY = {
@@ -28,6 +29,18 @@ const LEGACY = {
 
 const LEGACY_CUSTOM_INSTRUCTION =
   'Should this post be filtered out under the user\'s rule "horoscopes"? Answer yes if the post matches what the rule describes.';
+
+/** A stored rule set from before built-ins gained structured exclude/examples:
+ * every default-owned field still holds the previous shipped value. */
+function legacyStoredRules() {
+  return builtInRules().map((rule) => ({
+    ...rule,
+    include: LEGACY_BUILT_IN_INCLUDE[rule.id],
+    exclude: '',
+    examplesYes: [],
+    examplesNo: [],
+  }));
+}
 
 test('a fresh install enables all ten built-in rules', () => {
   const settings = normalizeSettings(undefined);
@@ -74,17 +87,78 @@ test('a migrated legacy custom rule keeps its exact original instruction', () =>
   assert.equal(compiled.questions[custom.id], LEGACY_CUSTOM_INSTRUCTION);
 });
 
-test('migrating built-in rules carries their prompts over verbatim', () => {
+test('migrating built-in rules carries the current compiled default prompts', () => {
   const settings = normalizeSettings({ custom: ['horoscopes'] });
   const compiled = compileRules(settings.rules);
+  const defaults = new Map(
+    builtInRules().map((rule) => [rule.id, compileRuleQuestion(rule)]),
+  );
 
+  assert.equal(compiled.questions.ads, undefined);
   for (const category of BUILT_IN_CATEGORIES) {
-    if (category.id === 'ads') {
-      assert.equal(compiled.questions.ads, undefined);
-      continue;
-    }
-    assert.equal(compiled.questions[category.id], category.question);
+    if (category.id === 'ads') continue;
+    assert.equal(compiled.questions[category.id], defaults.get(category.id));
+    // The condition stays the first line; exclude and examples are appended.
+    assert.ok(compiled.questions[category.id].startsWith(category.question));
   }
+});
+
+test('an un-edited legacy built-in is refreshed to the new defaults, keeping its on/off state', () => {
+  const settings = normalizeSettings({ rules: legacyStoredRules(), disabled: ['hate'] });
+  const byId = new Map(settings.rules.map((rule) => [rule.id, rule]));
+  const defaults = new Map(builtInRules().map((rule) => [rule.id, rule]));
+
+  for (const id of ['bait', 'promo', 'platitude', 'politics', 'nsfw', 'porn', 'spam', 'crypto']) {
+    assert.equal(byId.get(id).include, defaults.get(id).include);
+    assert.equal(byId.get(id).exclude, defaults.get(id).exclude);
+    assert.deepEqual(byId.get(id).examplesYes, defaults.get(id).examplesYes);
+    assert.deepEqual(byId.get(id).examplesNo, defaults.get(id).examplesNo);
+  }
+  // A rule disabled before the upgrade is refreshed in content but stays disabled.
+  assert.equal(byId.get('hate').enabled, false);
+  assert.equal(byId.get('hate').include, defaults.get('hate').include);
+  assert.deepEqual(settings.disabled, ['hate']);
+});
+
+test('an edited legacy built-in is preserved exactly and never overwritten', () => {
+  const edited = legacyStoredRules().map((rule) =>
+    rule.id === 'bait'
+      ? { ...rule, label: 'My bait', include: 'my own bait rule', exclude: 'my own exclude' }
+      : rule,
+  );
+  const settings = normalizeSettings({ rules: edited });
+  const bait = settings.rules.find((rule) => rule.id === 'bait');
+  const crypto = settings.rules.find((rule) => rule.id === 'crypto');
+
+  assert.equal(bait.label, 'My bait');
+  assert.equal(bait.include, 'my own bait rule');
+  assert.equal(bait.exclude, 'my own exclude');
+  // A sibling the user never touched is still upgraded.
+  assert.equal(crypto.include, builtInRules().find((rule) => rule.id === 'crypto').include);
+  assert.notEqual(crypto.include, LEGACY_BUILT_IN_INCLUDE.crypto);
+});
+
+test('adding only an exclude or example counts as an edit and blocks the refresh', () => {
+  const tweaked = legacyStoredRules().map((rule) =>
+    rule.id === 'promo'
+      ? { ...rule, exclude: 'never for a friend recommendation' }
+      : rule.id === 'crypto'
+        ? { ...rule, examplesYes: ['bag it now'] }
+        : rule,
+  );
+  const settings = normalizeSettings({ rules: tweaked });
+
+  assert.equal(settings.rules.find((rule) => rule.id === 'promo').include, LEGACY_BUILT_IN_INCLUDE.promo);
+  assert.equal(settings.rules.find((rule) => rule.id === 'promo').exclude, 'never for a friend recommendation');
+  assert.equal(settings.rules.find((rule) => rule.id === 'crypto').include, LEGACY_BUILT_IN_INCLUDE.crypto);
+  assert.deepEqual(settings.rules.find((rule) => rule.id === 'crypto').examplesYes, ['bag it now']);
+});
+
+test('the refresh is idempotent and does not rewrite rules it already upgraded', () => {
+  const once = normalizeSettings({ rules: legacyStoredRules() });
+  const twice = normalizeSettings(once);
+
+  assert.deepEqual(twice, once);
 });
 
 test('a disabled built-in rule keeps its prompt on the rule but asks nothing', () => {

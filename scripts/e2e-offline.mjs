@@ -142,8 +142,12 @@ check(!(await cellHidden('cell-bait')), 'engagement bait is NOT hidden before a 
 
 const panel = await context.newPage();
 await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
-await panel.locator('summary', { hasText: 'Settings' }).click();
-await panel.locator('#anyfilter-key').fill(FAKE_KEY);
+const settingsPageOpened = context.waitForEvent('page');
+await panel.getByRole('button', { name: 'Settings' }).click();
+const options = await settingsPageOpened;
+await options.waitForLoadState();
+check(options.url().endsWith('/options.html'), 'Settings opens as a separate browser tab');
+await options.locator('#anyfilter-key').fill(FAKE_KEY);
 
 check(await waitFor(() => cellHidden('cell-bait'), 'bait hidden after key'), 'engagement bait is hidden once a key is set (mock Jev)');
 check(await waitFor(() => cellHidden('cell-hate'), 'hate hidden after key'), 'hateful reply is hidden (mock Jev)');
@@ -154,6 +158,10 @@ check(jevCalls.length === 5, `Jev called once per classifiable post (got ${jevCa
 check(
   jevCalls.every((call) => Object.keys(call.questions).length === 9),
   'each Jev call carries the 9 built-in intent questions',
+);
+check(
+  jevCalls.some((call) => call.questions.bait?.instructions?.includes('Answer no if:') && call.questions.bait.instructions.includes('Examples that should be answered no:')),
+  'built-in questions include exclusion guidance and negative examples',
 );
 check(
   jevCalls.every((call) => call.state?.author?.handle?.startsWith('@') && typeof call.state?.author?.name === 'string'),
@@ -258,29 +266,41 @@ await new Promise((resolve) => setTimeout(resolve, 800));
 check(jevCalls.length === callsBeforeConversation + 2, 'nothing is scanned on pages other than home and conversations');
 
 await feed.goto('https://x.com/home');
-const adRule = panel.locator('[data-anyfilter-rule="ads"]');
+const adRule = options.locator('[data-rule-choice="ads"]');
 check((await adRule.count()) === 1, 'the local ads rule is visible in Settings');
-await panel.getByRole('button', { name: 'New rule' }).click();
-const customRule = panel.locator('[data-anyfilter-rule^="custom:"]');
+await options.getByRole('searchbox', { name: 'Search rules' }).fill('Politics');
+check((await options.getByRole('list', { name: 'Rules' }).getByRole('listitem').count()) === 1, 'rule search narrows the list');
+await options.locator('[data-rule-choice="politics"]').click();
+check((await options.locator('[data-anyfilter-rule="politics"]').getByRole('textbox', { name: 'Hide when' }).count()) === 1, 'selecting a rule opens its editor');
+await options.getByRole('searchbox', { name: 'Search rules' }).fill('');
+await adRule.click();
+check((await options.locator('[data-anyfilter-rule="ads"]').getByRole('textbox', { name: 'Hide when' }).count()) === 0, 'the local ad detector is not a model prompt editor');
+await options.getByRole('button', { name: 'New rule' }).click();
+const customRule = options.locator('[data-anyfilter-rule^="custom:"]');
 check((await customRule.count()) === 1, 'a custom rule can be created');
+await customRule.getByRole('textbox', { name: 'Hide when' }).fill('A temporary draft that should be discarded');
+await options.getByRole('button', { name: 'Cancel' }).click();
+check((await customRule.count()) === 0, 'cancel discards a new unsaved rule');
+await options.getByRole('button', { name: 'New rule' }).click();
 await customRule.getByRole('textbox', { name: 'Rule name' }).fill('Next.js benchmark posts');
 await customRule.getByRole('textbox', { name: 'Hide when' }).fill('Hide posts about Next.js benchmarks.');
-await panel.getByRole('button', { name: 'Save and apply' }).click();
+await options.getByRole('button', { name: 'Save and apply' }).click();
 check(
   await waitFor(() => cellHidden('cell-keep'), 'custom rule hides matching post'),
   'saved custom rule hides a matching post through mock Jev',
 );
-await panel.getByRole('textbox', { name: 'Text to test' }).fill('Next.js benchmarks improved today');
-await panel.getByRole('button', { name: 'Test text' }).click();
+await options.getByRole('textbox', { name: 'Text to test' }).fill('Next.js benchmarks improved today');
+await options.getByRole('button', { name: 'Test text' }).click();
 check(
-  await waitFor(async () => (await panel.getByText('Next.js benchmark posts').count()) === 1, 'preview custom result'),
+  await waitFor(async () => (await options.getByText('Next.js benchmark posts').count()) === 1, 'preview custom result'),
   'text preview includes the custom rule',
 );
 check(
-  await waitFor(async () => (await panel.getByText('would hide', { exact: true }).count()) >= 1, 'preview matched score'),
+  await waitFor(async () => (await options.getByText('would hide', { exact: true }).count()) >= 1, 'preview matched score'),
   'text preview shows a matching score against the threshold',
 );
 
+await options.screenshot({ path: path.join(ROOT, 'tmp', 'settings.png'), fullPage: true });
 await panel.setViewportSize({ width: 360, height: 900 });
 await panel.screenshot({ path: path.join(ROOT, 'tmp', 'sidepanel.png'), fullPage: true });
 await feed.screenshot({ path: path.join(ROOT, 'tmp', 'feed.png'), fullPage: true });

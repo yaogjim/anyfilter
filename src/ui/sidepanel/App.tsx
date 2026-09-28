@@ -2,7 +2,6 @@ import type { Settings } from '../../domain/settings';
 import { Header } from './Header';
 import { HiddenGroups } from './HiddenGroups';
 import type { PanelGateway } from './PanelGateway';
-import { SettingsSection } from './SettingsSection';
 import { Tiles } from './Tiles';
 import { useSubscribedValue } from './use-subscribed-value';
 
@@ -34,16 +33,16 @@ export function App({ gateway }: { gateway: PanelGateway }) {
         <Tiles state={state} />
       </section>
       <HiddenGroups state={state} labelOrder={labelOrder} onOverride={gateway.override} />
-      <section className="rounded-xl border border-line bg-white p-3.5">
-        <SettingsSection
-          settings={current}
-          onChange={updateSettings}
-          onClearData={gateway.clearData}
-          onClearHidden={gateway.clearHidden}
-          onSaveRules={gateway.saveRules}
-          onPreview={gateway.previewRule}
-        />
-      </section>
+      <button
+        type="button"
+        className="flex w-full items-center justify-between rounded-xl border border-line bg-white px-3.5 py-2.5 text-left text-[15px] font-bold text-ink transition hover:bg-surface"
+        onClick={() => void chrome.runtime.openOptionsPage()}
+      >
+        Settings
+        <span className="text-ink-2" aria-hidden="true">
+          ›
+        </span>
+      </button>
     </div>
   );
 }

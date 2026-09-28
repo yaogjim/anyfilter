@@ -29,6 +29,12 @@ Each rule is one object:
 | `include` | The condition. For semantic rules this is the first line of the instruction sent to Jev. |
 | `exclude` | Optional "answer no if" condition, appended to the instruction. |
 | `examplesYes` / `examplesNo` | Up to 5 short examples each, appended to the instruction. |
+
+Built-in rules ship with defaults for all four content fields: the condition,
+the "answer no if" text, and up to five examples per side. Those defaults are
+maintained on the ten category definitions in `src/domain/category.ts` and copied
+into the rules by `builtInRules()`. Before that, built-ins had only a condition
+and empty exclude/examples.
 | `scope` | `all` posts, or `replies` only (requires parent-post context). |
 | `threshold` | Optional per-rule override of the global threshold. |
 
@@ -122,9 +128,11 @@ intended behavior, not measured accuracy.
 - **Definition.** A post whose primary purpose is to farm replies, follows, likes,
   comments, a keyword, or self-introductions.
 - **Matches.** Explicit calls to reply with a word or emoji, "comment X and I will
-  follow", introduction threads, follow-for-follow framing.
+  follow", introduction threads, follow-for-follow framing, and "let's grow
+  together" style prompts.
 - **Does not match.** A genuine request for help, a relevant survey, or an
-  on-topic discussion question with substance.
+  on-topic discussion question with substance. The default exclude says so
+  directly, and the negative examples are real troubleshooting questions.
 - **Inputs.** Post text; parent text for replies.
 - **Limits.** Short posts that ask a real question and posts that ask a question
   as part of a substantive argument are the hard cases.
@@ -132,11 +140,12 @@ intended behavior, not measured accuracy.
 ### 3. Promo / selling — `promo` (semantic)
 
 - **Definition.** Selling or advertising a product, course, template, service, or
-  newsletter.
+  newsletter, or funneling people to the author's own paid offer.
 - **Matches.** Direct offers, discount codes, launch announcements, "link in bio"
   pointing at something for sale, free lead-generation funnels.
-- **Does not match.** Independent reviews, bug reports and troubleshooting, and
-  posts that quote an ad in order to criticize it.
+- **Does not match.** Independent reviews, build logs, bug reports and
+  troubleshooting, and posts that quote an ad in order to criticize it. The
+  default exclude names those cases.
 - **Inputs.** Post text; quoted text; parent text for replies.
 - **Limits.** The line between a genuine recommendation and undisclosed promotion
   is not always visible in the text.
@@ -172,9 +181,11 @@ intended behavior, not measured accuracy.
   politicians, elections, political ideology, nationalism, geopolitics, or
   political outrage and culture-war argument.
 - **Matches.** Political news and commentary, including neutral reporting and
-  reasoned discussion, when politics is the topic.
+  reasoned discussion, when politics is the topic. The positive examples include
+  neutral items such as a budget vote and official turnout figures, so factual
+  political news is not let through by a tone reading.
 - **Does not match.** A passing or incidental mention, or a post whose subject is
-  something else.
+  something else, as the default exclude states.
 - **Inputs.** Post text; quoted text; parent text for replies.
 - **Limits.** This is intentionally broad: filtering politics hides political
   discussion you might agree with, including neutral news. The rule targets the
@@ -188,7 +199,9 @@ intended behavior, not measured accuracy.
 - **Matches.** Explicit sexual description, nudity described in text, adult-content
   links, graphic gore.
 - **Does not match.** Medical, educational, and journalistic text that mentions
-  anatomy or reports an event without graphic description.
+  anatomy or reports an event without graphic description. The default exclude
+  states this and the negative examples are an anatomy study guide, a police
+  report, and a sex-education post.
 - **Inputs.** Post text; quoted text; parent text for replies.
 - **Limits.** Text only. A post with an explicit image and a bland caption will not
   match, because no media is examined. The medical/educational/news boundary is a
@@ -203,7 +216,9 @@ intended behavior, not measured accuracy.
   multilingual patterns listed in the rule text (English, Chinese, Japanese,
   Korean, Spanish, Portuguese, French, German, Russian, Arabic, Thai, Vietnamese).
 - **Does not match.** A post that quotes the same lines to warn about, mock, or
-  complain about bots.
+  complain about bots, or a plain profile or link share with no sexual framing.
+  The default exclude states both, and the negative examples include a bot-warning
+  post and a "link in bio" that is ordinary backend work.
 - **Inputs.** Post text; quoted text; parent text for replies.
 - **Limits.** It does **not** assert that the account is a bot — only that the text
   reads like this spam. A single "DM me" or "check my profile" is not enough on its
@@ -212,28 +227,31 @@ intended behavior, not measured accuracy.
 
 ### 9. Spam / bot replies — `spam` (semantic)
 
-- **Definition.** Automated or off-topic spam replies: link pushing, follow-me or
-  DM-me bait, canned or copy-pasted text, and replies unrelated to what they answer.
-- **Matches.** Follow-back and DM bait, canned promotional replies, replies with no
-  relation to the post they answer.
-- **Does not match.** A genuine request to verify a number or a claim, and an
-  ordinary disagreeing reply with substance.
+- **Definition.** Visibly spammy replies: unsolicited promotion, repeated canned
+  solicitation, or unrelated link and follow-me bait. Text alone cannot prove an
+  account is automated.
+- **Matches.** Unsolicited follow-back campaigns, canned promotional replies, and
+  replies unrelated to the post they answer when the parent is available.
+- **Does not match.** A genuine request to verify a claim, a relevant private
+  message request, or a brief disagreeing reply with substance.
 - **Inputs.** Post text; parent text for replies. Off-topic judgement depends on the
-  parent, so when the parent is missing those replies are treated as insufficient
-  input rather than as spam.
-- **Limits.** A short reply that only asks for a DM or a follow-back does count.
-  The current prompt still lists "asking an AI to verify" as an example of an
-  automated pattern. That is a rough condition, is recognized as a false positive
-  risk against genuine verification requests, and is scheduled for revision; the
-  text here will be updated when the wording is changed.
+  parent and cannot be made from an isolated reply. An ordinary DM request is not
+  sufficient evidence of spam; visible unsolicited solicitation is required.
+- **Limits.** The text can resemble a repeated template without proving automation.
+  The earlier "asking an AI to verify" condition has been removed because it
+  created false positives against genuine verification requests.
 
 ### 10. Crypto shilling — `crypto` (semantic)
 
-- **Definition.** Promoting a cryptocurrency, token, presale, airdrop, or trading
-  signal.
-- **Matches.** Hype, presale and airdrop promotion, unsolicited trading calls.
+- **Definition.** Promoting a cryptocurrency, token, presale, airdrop, NFT, or
+  trading signal — hyping an entry, a price target, or a referral — rather than
+  analyzing it.
+- **Matches.** Hype, presale and airdrop promotion, unsolicited trading calls, and
+  referral pushes.
 - **Does not match.** Neutral technical or market analysis, risk warnings, and
-  posts warning that a project is a scam.
+  posts warning that a project is a scam. The default exclude lists all three, and
+  the negative examples include a liquidity risk review and an on-chain scam
+  report.
 - **Inputs.** Post text; quoted text; parent text for replies.
 - **Limits.** Hype and analysis share vocabulary. A warning and a promotion can
   look similar to a keyword-level reading.
@@ -251,8 +269,8 @@ as the feed. Only clicking the test button sends anything. A preview:
   no score / not applicable;
 - gives the local `ads` rule and any `replies`-scope rule without a parent as
   "not applicable";
-- reports the provider, the model identifier the API returned, elapsed usage, and
-  an estimated token cost;
+- reports the configured model alias, input-token usage, and an estimated token
+  cost when available; it does not report API-returned model identity or latency;
 - **writes nothing**: no panel state, no hidden-post history, no "put back"
   choice, no score cache, and no DOM change. Preview usage is not added to the
   timeline counters;
@@ -301,8 +319,13 @@ to be measured, not promised results.
 - A migrated custom rule keeps its **exact original instruction text**, so its
   behavior does not silently change on upgrade. Legacy custom rules had only a
   name; that name still produces the same question it did before.
-- Built-in rule text is preserved verbatim on migration, including the deliberately
-  broad politics wording and the multilingual bot examples.
+- An un-edited built-in rule left on the previous defaults is refreshed once to the
+  current default condition, exclude text, and examples, because those defaults now
+  live in `category.ts`. The refresh compares the exact previous default fields
+  (condition, label, kind, scope, threshold, and empty exclude/examples); a built-in
+  the user edited in any of them is kept exactly as stored.
+- A built-in rule that was disabled is refreshed in content but stays disabled. The
+  on/off state is never flipped by the upgrade.
 - User edits win over built-in defaults. Nothing the user changed is overwritten by
   an upgrade without an explicit save.
 - Clearing filter data removes hidden posts, counters, and cached scores. It does
@@ -310,9 +333,10 @@ to be measured, not promised results.
 
 ### Known limitations
 
+- The built-in refresh recognises a single previous default snapshot per rule.
+  Once a rule has been refreshed, the same snapshot no longer matches it, so a later
+  default change needs its own recorded snapshot rather than reusing this one.
 - Label reuse when deriving a custom rule id matches exactly, so a case-only
   rename of a legacy custom rule produces a new id rather than reusing the old one.
 - Custom rule ids are hashed from the label. Two labels that differ only by case
   share a base id and the second gets a `-2` suffix.
-- The `spam` prompt's "asking an AI to verify" condition is still present and is
-  pending revision, as noted above.

@@ -14,7 +14,7 @@ To build it yourself: `pnpm install && pnpm build`, then load `.output/chrome-mv
 
 ## Using it
 
-1. Open Settings in the panel and paste a Jev key from [Vercel AI Gateway](https://vercel.com/ai-gateway/models/jev) or [TypeSafe](https://console.typesafe.ai). It never leaves your browser.
+1. Click **Settings** at the bottom of the panel to open the settings tab, then paste a Jev key from [Vercel AI Gateway](https://vercel.com/ai-gateway/models/jev) or [TypeSafe](https://console.typesafe.ai). It never leaves your browser.
 2. Ten rules ship enabled: ads, engagement bait, promo, platitudes, hate and insults, politics, NSFW, porn bots, spam replies, and crypto shilling. All ten are on by default because that is the preference, not because every one has been accuracy-verified. Ads are decided locally from the page; the other nine are asked to Jev.
 3. Open "Manage rules" to read what each rule means, edit its condition, add your own examples, or add a custom rule. "Test a text" runs one pasted post through the same rules and the same Jev path and shows each rule's probability against its threshold, without saving anything or touching the page.
 4. Scroll. Hidden posts show up in the panel grouped by reason; click "Put back in feed" if Jev got one wrong.
@@ -23,7 +23,7 @@ Text only: rules read the post text, the author's name and handle, and quoted or
 
 <p>
   <img src="screenshots/panel.png" width="360" alt="Side panel: stats and hidden posts grouped by reason">
-  <img src="screenshots/settings.png" width="360" alt="Settings, at the bottom of the same panel">
+  <img src="screenshots/settings.png" width="360" alt="Settings tab: provider, threshold, rules and data">
 </p>
 
 ## Development
@@ -49,7 +49,7 @@ src/domain/          types, categories, rules, compiler, verdicts, settings, por
 src/features/        feed-filter: scan, classify, hide
 src/infrastructure/  Chrome storage, Jev adapters, X DOM reading and hiding
 src/ui/sidepanel/    React side panel, rule manager and text preview
-src/entrypoints/     content, background, sidepanel
+src/entrypoints/     content, background, sidepanel, options
 scripts/             offline tests, evaluation report, e2e harness
 ```
 
