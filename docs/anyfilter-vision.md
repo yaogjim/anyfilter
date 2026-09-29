@@ -34,4 +34,5 @@
 
 - `timeline-review-prd.md`：首期“时间线复核模式”要做什么、怎么算做完。
 - `timeline-review-design.md`：首期怎么接入现有代码。
+- `multi-site-design.md`：X 用户主页与 List（已实现），以及通用网页、更多站点的设计（阶段 2、3，未实现）。
 - `roadmap.md`：远期设想（模型推荐金色、优先队列、自动滚动、邮件和消息等），每项只写进入条件。

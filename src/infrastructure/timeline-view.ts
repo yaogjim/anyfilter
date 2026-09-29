@@ -2,6 +2,7 @@ import type { ParentPost, Post } from '../domain/post';
 import type { ReviewSnapshot } from '../domain/review';
 import { hashString } from '../domain/rule';
 import type { TimelineView as TimelineViewPort } from '../domain/timeline-view';
+import { isFilteredPage } from '../domain/x-pages';
 import {
   readOwnHandle,
   readParentPost,
@@ -30,14 +31,6 @@ interface PageContext {
   ownHandle: string;
   focal: ParentPost | null;
   focalArticle: Element | null;
-}
-
-const HOME_PATH = /^\/home(?:[/?#]|$)/;
-const SEARCH_PATH = /^\/search(?:[/?#]|$)/;
-const STATUS_PATH = /^\/[A-Za-z0-9_]{1,15}\/status\/\d+(?:[/?#]|$)/;
-
-export function isFilteredPage(pathname: string): boolean {
-  return HOME_PATH.test(pathname) || SEARCH_PATH.test(pathname) || STATUS_PATH.test(pathname);
 }
 
 /** Content fingerprint of a rendered article. It hashes the actual text rather

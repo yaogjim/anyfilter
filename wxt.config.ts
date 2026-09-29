@@ -12,7 +12,7 @@ export default defineConfig({
     name: 'AnyFilter',
     description:
       'Hide anything, on any site. Hides ads, engagement bait, promos, platitudes, hate, spam bots and anything you describe, and shows you what it hid. X first, more sites coming. Bring your own Jev API key.',
-    version: '0.3.0.0',
+    version: '0.4.0.0',
     permissions: ['storage', 'sidePanel'],
     host_permissions: [
       'https://x.com/*',

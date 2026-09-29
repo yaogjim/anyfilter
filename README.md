@@ -20,6 +20,8 @@ To build it yourself: `pnpm install && pnpm build`, then load `.output/chrome-mv
 4. Scroll. Hidden posts show up in the panel grouped by reason; click "Put back in feed" if Jev got one wrong.
 5. Optional: the side panel's **Verification samples** section can locally copy already-loaded X post text for later review. It is off by default, capped at 300 samples, and can be paused or deleted separately from filtering history. This preliminary collection does not call a model and cannot measure accuracy. See [PRIVACY.md](PRIVACY.md) before enabling it.
 
+Where it works: the X home timeline, search results, a post's conversation, a user's profile (the Posts tab, `x.com/<handle>`) and a list (`x.com/i/lists/<id>`). Replies, Media and Likes tabs are left alone. Verification samples are still only collected on home, search and post pages, never on profiles or lists.
+
 Text only: rules read the post text, the author's name and handle, and quoted or parent text. Images and video are not analyzed. The percentage shown is a model probability compared with your threshold, not an accuracy rate. The full per-rule specification, including what each rule must not match and where it stops, is in [docs/filter-rules.md](docs/filter-rules.md).
 
 <p>
@@ -50,6 +52,7 @@ The side panel's **Real evaluation** section runs Jev, OpenAI `gpt-6-luna` and D
 3. `pnpm review:blind prepare`, label in the browser, then `pnpm review:blind apply <submission.json>`. Labels made in the on-page review mode are only hints.
 4. `pnpm eval:report <export.json>` scores each labeller against the human labels only, per rule, source and split, and lists rule-change suggestions from the dev split. Suggestions are never applied automatically.
 5. Labels made in the timeline (review mode) can be saved from the side panel with "Export review labels". `pnpm review:report <file.json>` compares them with what the live filter decided, per post and per rule. They were made with the model's verdict on screen, so they point at posts worth a second look; they are not an answer key.
+6. `pnpm rule:replay --labels <file.json> --pack <rule-pack.json>` replays a candidate rule pack against those labels and reports pass, fail or not enough data; `pnpm rule:apply --pack <rule-pack.json> --yes` puts it into the running extension (and `--rollback` puts the old rules back). See `docs/improvement-loop.md`.
 
 `pnpm e2e` loads the built extension into Chromium, serves fake X pages from `scripts/fixtures/` and mocks Jev. It intercepts every request, so it too never contacts a provider or spends tokens. It needs a Chromium build that can load an unpacked MV3 extension with its service worker; where that is unavailable it prints an explicit `SKIP` and exits 0 rather than hanging. If playwright-core can't find a browser, point it at one with `ANYFILTER_CHROMIUM=/path/to/chrome`.
 
@@ -64,7 +67,7 @@ src/entrypoints/     content, background, sidepanel, options
 scripts/             offline tests, evaluation report, e2e harness
 ```
 
-To support another site, implement `domain/timeline-view.ts` for it and add its URL to the content script.
+To support another site, implement `domain/timeline-view.ts` for it and add its URL to the content script. Plans for general web pages and more sites (nothing implemented yet) are in [docs/multi-site-design.md](docs/multi-site-design.md).
 
 ## License
 

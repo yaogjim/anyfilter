@@ -1,0 +1,20 @@
+{
+  "kind": "anyfilter-rule-pack",
+  "version": 1,
+  "name": "low-value-2026-09",
+  "note": "A custom rule for short throwaway remarks, bare quote or headline reposts, 🚨 announcements, growth hacks and unsupported hot takes. Tuned on 36 review labels; see docs/rule-tuning-2026-09.md.",
+  "rules": [
+    {
+      "id": "custom:2e34a5c4",
+      "label": "低价值水帖",
+      "source": "custom",
+      "kind": "semantic",
+      "enabled": true,
+      "include": "Is this post low-value — a short throwaway remark, a bare quote or headline repost, a sensational \"🚨 breaking\" announcement, a growth-hack or virality tip, an aphorism, or a hot take asserted without any evidence — so that a reader learns nothing specific and new from it?",
+      "exclude": "the post reports concrete numbers, first-hand experience, technical detail, or a multi-step argument with evidence the reader can check, or asks a genuine question",
+      "examplesYes": [],
+      "examplesNo": [],
+      "scope": "all"
+    }
+  ]
+}

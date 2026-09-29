@@ -194,6 +194,34 @@ check(
 );
 check(!(await cellHidden('cell-ad')), 'and review mode hides nothing');
 
+// Profiles and lists render posts like the home timeline, so they are read and
+// marked too. The fake X serves the same posts for every non-status URL. The
+// Replies tab and notifications are not post streams the filter reads, and the
+// review decoration is the visible proof that a page was read.
+{
+  const decoratedCount = (page) =>
+    page.evaluate(() => document.querySelectorAll('article[data-anyfilter-review]').length);
+  for (const [url, read] of [
+    ['https://x.com/rauchg', true],
+    ['https://x.com/i/lists/1585430245762441216', true],
+    ['https://x.com/rauchg/with_replies', false],
+    ['https://x.com/notifications', false],
+  ]) {
+    const other = await context.newPage();
+    await other.goto(url);
+    if (read) {
+      check(
+        await waitFor(async () => (await decoratedCount(other)) > 0, `posts read on ${url}`),
+        `${new URL(url).pathname} is read and marked like the home timeline`,
+      );
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      check((await decoratedCount(other)) === 0, `${new URL(url).pathname} is left alone`);
+    }
+    await other.close();
+  }
+}
+
 const panel = await context.newPage();
 await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
 check((await panel.locator('[data-anyfilter-review="toggle"]').getAttribute('aria-pressed')) === 'true', 'the side panel shows review mode as on');

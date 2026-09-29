@@ -3,7 +3,9 @@
 AnyFilter has no servers or telemetry. Normal filtering can send post text to your selected model provider; optional verification capture stores additional page text locally only when you turn it on.
 
 **What leaves your browser.** To judge a post, the extension sends the following to
-the provider you picked in Settings, Vercel AI Gateway or TypeSafe:
+the provider you picked in Settings, Vercel AI Gateway or TypeSafe. This happens on
+X's home timeline, search results, a post's conversation, a user's profile (Posts
+tab) and a list timeline, and nowhere else:
 
 - the post's text;
 - the author's display name and handle;

@@ -531,8 +531,10 @@ function suffixedId(samples: readonly CaptureSample[], base: string): string {
   return `${base}#${Date.now()}`;
 }
 
-/** The three regexes mirror the page gate in `timeline-view`, restated here so
- * the domain layer never imports infrastructure. */
+/** Capture keeps its own, deliberately narrower list than the filter's page
+ * gate in `x-pages`: profiles and lists are filtered and reviewed but never
+ * add verification samples. Widening this list widens what is stored, so it
+ * needs a matching change to PRIVACY.md. */
 const HOME_PATH = /^\/home(?:[/?#]|$)/;
 const SEARCH_PATH = /^\/search(?:[/?#]|$)/;
 const STATUS_PATH = /^\/[A-Za-z0-9_]{1,15}\/status\/\d+(?:[/?#]|$)/;
