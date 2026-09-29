@@ -14,10 +14,11 @@ To build it yourself: `pnpm install && pnpm build`, then load `.output/chrome-mv
 
 ## Using it
 
-1. Click **Settings** at the bottom of the panel to open the settings tab, then paste a Jev key from [Vercel AI Gateway](https://vercel.com/ai-gateway/models/jev) or [TypeSafe](https://console.typesafe.ai). It never leaves your browser.
+1. Click **Settings** at the bottom of the panel to open the settings tab, then paste a Jev key from [Vercel AI Gateway](https://vercel.com/ai-gateway/models/jev) or [TypeSafe](https://console.typesafe.ai). It is stored locally and sent only to your selected provider as an authorization header when filtering or testing text.
 2. Ten rules ship enabled: ads, engagement bait, promo, platitudes, hate and insults, politics, NSFW, porn bots, spam replies, and crypto shilling. All ten are on by default because that is the preference, not because every one has been accuracy-verified. Ads are decided locally from the page; the other nine are asked to Jev.
 3. Open "Manage rules" to read what each rule means, edit its condition, add your own examples, or add a custom rule. "Test a text" runs one pasted post through the same rules and the same Jev path and shows each rule's probability against its threshold, without saving anything or touching the page.
 4. Scroll. Hidden posts show up in the panel grouped by reason; click "Put back in feed" if Jev got one wrong.
+5. Optional: the side panel's **Verification samples** section can locally copy already-loaded X post text for later review. It is off by default, capped at 300 samples, and can be paused or deleted separately from filtering history. This preliminary collection does not call a model and cannot measure accuracy. See [PRIVACY.md](PRIVACY.md) before enabling it.
 
 Text only: rules read the post text, the author's name and handle, and quoted or parent text. Images and video are not analyzed. The percentage shown is a model probability compared with your threshold, not an accuracy rate. The full per-rule specification, including what each rule must not match and where it stops, is in [docs/filter-rules.md](docs/filter-rules.md).
 
@@ -39,6 +40,16 @@ pnpm e2e          # offline end-to-end run against static fixtures
 `pnpm test:unit` runs `scripts/test/*.test.mjs` with Node's built-in test runner and no extra dependencies. It imports the extension's TypeScript sources directly through Node's type stripping, which `scripts/ts-loader.mjs` extends to cover the project's extensionless relative imports. Node 22.6 or newer is required; on an older Node the runner prints a skip notice instead of failing.
 
 `pnpm eval:rules` prints per-rule precision, recall, false-hide, missed-hide and undecided rates with 95% confidence intervals. It is **fully offline** and uses a small hand-labelled fixture set with a deliberately toy keyword scorer. Its numbers say nothing about Jev's quality and are not a promise of accuracy. A real evaluation is only ever run by hand with explicit authorization and a budget — `pnpm eval:rules --remote` refuses to run automatically and prints the manual procedure. Continuous integration never makes a billable call.
+
+### Real quality evaluation (by hand, opt-in)
+
+The side panel's **Real evaluation** section runs Jev, OpenAI `gpt-6-luna` and DeepSeek `deepseek-flash` over your saved verification samples. Each provider has its own USD 1 local cap, checked before every request; keys are typed into the panel and never shown or exported. Nothing runs on a schedule, and CI never makes a billable call.
+
+1. Turn the budget on, add keys, authorize a run per labeller, then **Export results** (the file contains post text: keep it private).
+2. `pnpm eval:import <export.json>` writes the blind-review inputs under `tmp/`: a random holdout batch first, then the disputed batch (samples the labellers disagree on). No machine answer reaches the review page.
+3. `pnpm review:blind prepare`, label in the browser, then `pnpm review:blind apply <submission.json>`. Labels made in the on-page review mode are only hints.
+4. `pnpm eval:report <export.json>` scores each labeller against the human labels only, per rule, source and split, and lists rule-change suggestions from the dev split. Suggestions are never applied automatically.
+5. Labels made in the timeline (review mode) can be saved from the side panel with "Export review labels". `pnpm review:report <file.json>` compares them with what the live filter decided, per post and per rule. They were made with the model's verdict on screen, so they point at posts worth a second look; they are not an answer key.
 
 `pnpm e2e` loads the built extension into Chromium, serves fake X pages from `scripts/fixtures/` and mocks Jev. It intercepts every request, so it too never contacts a provider or spends tokens. It needs a Chromium build that can load an unpacked MV3 extension with its service worker; where that is unavailable it prints an explicit `SKIP` and exits 0 rather than hanging. If playwright-core can't find a browser, point it at one with `ANYFILTER_CHROMIUM=/path/to/chrome`.
 

@@ -15,7 +15,28 @@ function makeEvent() {
       for (const listener of [...listeners]) listener(...args);
     },
     count: () => listeners.size,
+    /** Invokes every listener and returns what each of them returned, so a test
+     * can see whether a message listener asked to answer asynchronously. */
+    invoke: (...args) => [...listeners].map((listener) => listener(...args)),
   };
+}
+
+/** The extension id the stubbed `chrome.runtime.id` reports. */
+export const TEST_EXTENSION_ID = 'anyfiltertestextensionid';
+
+/** One of our own pages, as the background would see it. */
+export function extensionPageSender(id = TEST_EXTENSION_ID) {
+  return { id, url: `chrome-extension://${id}/sidepanel.html` };
+}
+
+/** Our content script running in an X tab. */
+export function xContentSender(id = TEST_EXTENSION_ID) {
+  return { id, url: 'https://x.com/home', tab: { url: 'https://x.com/home' } };
+}
+
+/** An unrelated web page (never reaches the listener in a real browser). */
+export function webPageSender() {
+  return { url: 'https://evil.test/page' };
 }
 
 function createStorageArea(name, map, notify) {
@@ -73,6 +94,7 @@ export function installChrome({ local = {}, session = {} } = {}) {
   const sessionMap = new Map(Object.entries(structuredClone(session)));
   const onChanged = makeEvent();
   const notify = (changes, areaName) => onChanged.emit(changes, areaName);
+  const onMessage = makeEvent();
 
   globalThis.chrome = {
     storage: {
@@ -81,15 +103,48 @@ export function installChrome({ local = {}, session = {} } = {}) {
       onChanged,
     },
     runtime: {
+      id: TEST_EXTENSION_ID,
+      getURL: (path) => `chrome-extension://${TEST_EXTENSION_ID}/${path}`,
       sendMessage: async () => {
         throw new Error('chrome.runtime.sendMessage is not modelled in unit tests');
       },
-      onMessage: makeEvent(),
+      onMessage,
+      onInstalled: makeEvent(),
+    },
+    tabs: {
+      query: async () => [],
+      sendMessage: async () => undefined,
+      onUpdated: makeEvent(),
+    },
+    sidePanel: {
+      setOptions: async () => undefined,
+      setPanelBehavior: async () => undefined,
     },
   };
 
   return {
     storageChanged: onChanged,
+    onMessage,
+    /** Delivers one runtime message to the registered listeners and resolves with
+     * whatever the listener answered. A listener that does not ask to answer
+     * asynchronously resolves to `undefined` immediately; a listener that hangs
+     * times out instead of blocking the suite. */
+    dispatchMessage: (message, sender = extensionPageSender()) =>
+      new Promise((resolve) => {
+        let settled = false;
+        const sendResponse = (value) => {
+          if (settled) return;
+          settled = true;
+          resolve(value);
+        };
+        const results = onMessage.invoke(message, sender, sendResponse);
+        if (!results.some((keepsAlive) => keepsAlive === true)) {
+          sendResponse(undefined);
+          return;
+        }
+        const timer = setTimeout(() => sendResponse(undefined), 2000);
+        if (typeof timer.unref === 'function') timer.unref();
+      }),
     snapshot: () => ({
       local: structuredClone(Object.fromEntries(localMap)),
       session: structuredClone(Object.fromEntries(sessionMap)),

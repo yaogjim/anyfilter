@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { postUrl, profileUrl, type Post } from '../../domain/post';
+import { useLanguage } from '../language';
 import { Avatar } from './Avatar';
 
 function ImageGrid({ urls }: { urls: string[] }) {
@@ -15,6 +16,7 @@ function ImageGrid({ urls }: { urls: string[] }) {
 }
 
 export function PostCard({ post, children }: { post: Post; children: ReactNode }) {
+  const { t } = useLanguage();
   const profile = profileUrl(post.handle);
   return (
     <article className="mx-1 mb-2 rounded-2xl border border-line bg-white px-3 pt-3 pb-2">
@@ -41,13 +43,13 @@ export function PostCard({ post, children }: { post: Post; children: ReactNode }
           </a>
           {post.truncated && (
             <a className="text-[14px] text-sky-500" href={postUrl(post)} target="_blank" rel="noreferrer">
-              Show more
+              {t('shell.post.showMore')}
             </a>
           )}
           {post.imageUrls.length > 0 && <ImageGrid urls={post.imageUrls} />}
           {post.hasVideo && (
             <div className="mt-2.5 grid h-24 place-items-center rounded-2xl border border-line bg-surface text-ink-2">
-              ▶ Video
+              ▶ {t('shell.post.video')}
             </div>
           )}
           {post.quotedText && (

@@ -1,4 +1,5 @@
 import type { ParentPost, Post } from '../domain/post';
+import type { ReviewSnapshot } from '../domain/review';
 import { hashString } from '../domain/rule';
 import type { TimelineView as TimelineViewPort } from '../domain/timeline-view';
 import {
@@ -9,6 +10,8 @@ import {
   threadHeadOf,
   type ReadContext,
 } from './timeline-reader';
+import { isReviewNode } from './review-dom';
+import { ReviewLayer } from './review-layer';
 
 const PROCESSED_ATTRIBUTE = 'data-anyfilter';
 const SIGNATURE_ATTRIBUTE = 'data-anyfilter-sig';
@@ -81,13 +84,22 @@ export class TimelineView implements TimelineViewPort {
    * as fully handled, so a later scan can pick them up. */
   private readonly pendingText = new WeakSet<HTMLElement>();
 
+  /** Review-mode drawing. Display only: it never hides a post. */
+  readonly review = new ReviewLayer();
+
   constructor() {
     this.installStyles();
   }
 
   onChange(listener: () => void): () => void {
     let scheduled = false;
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((records) => {
+      // Nodes this extension injected (review labels, the toolbar) must not
+      // trigger another scan of the page.
+      const foreign = records.some((record) =>
+        [...record.addedNodes, ...record.removedNodes].some((node) => !isReviewNode(node)),
+      );
+      if (!foreign) return;
       if (scheduled) return;
       scheduled = true;
       requestAnimationFrame(() => {
@@ -115,6 +127,9 @@ export class TimelineView implements TimelineViewPort {
       // not rendered yet is retried instead of being silently skipped forever.
       article.setAttribute(PROCESSED_ATTRIBUTE, questionsKey);
       article.setAttribute(SIGNATURE_ATTRIBUTE, signature);
+      // X reuses DOM cells for other posts; a decoration must never follow the
+      // node to a post it was not made for.
+      if (article.getAttribute(POST_ID_ATTRIBUTE) !== post.id) this.review.clear(article);
       article.setAttribute(POST_ID_ATTRIBUTE, post.id);
       if (isReadable(post)) this.pendingText.delete(article);
       else this.pendingText.add(article);
@@ -164,6 +179,14 @@ export class TimelineView implements TimelineViewPort {
       target.style.maxHeight = '';
       if (target.parentElement) target.parentElement.style.overflow = '';
     }
+  }
+
+  decorate(postId: string, snapshot: ReviewSnapshot): void {
+    for (const article of this.articlesOf(postId)) this.review.render(article, snapshot);
+  }
+
+  clearDecoration(postId: string): void {
+    for (const article of this.articlesOf(postId)) this.review.clear(article);
   }
 
   private isHiding(target: HTMLElement): boolean {

@@ -2,17 +2,27 @@ import '../../assets/globals.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BackgroundClient } from '../../infrastructure/background-client';
+import { loadCaptureState, onCaptureStateChanged } from '../../infrastructure/capture-store';
+import {
+  loadVerificationCandidates,
+  loadVerificationStatus,
+} from '../../infrastructure/evaluation-verification';
 import { loadPanelState, onPanelStateChanged } from '../../infrastructure/panel-state-store';
+import { loadReviewCount, loadReviewStore, onReviewRecordsChanged } from '../../infrastructure/review-store';
 import { loadSettings, onSettingsChanged, saveSettings } from '../../infrastructure/settings-store';
+import { CaptureSection } from '../../ui/sidepanel/CaptureSection';
 import type { PanelGateway } from '../../ui/sidepanel/PanelGateway';
 import { SettingsSection } from '../../ui/sidepanel/SettingsSection';
 import { useSubscribedValue } from '../../ui/sidepanel/use-subscribed-value';
+import { LanguageProvider, useLanguage, type TranslationKey } from '../../ui/language';
 
-const NAV: ReadonlyArray<{ id: string; label: string }> = [
-  { id: 'provider', label: 'Provider & key' },
-  { id: 'threshold', label: 'Threshold' },
-  { id: 'rules', label: 'Rules' },
-  { id: 'data', label: 'Data' },
+const NAV: ReadonlyArray<{ id: string; labelKey: TranslationKey }> = [
+  { id: 'appearance', labelKey: 'shell.nav.appearance' },
+  { id: 'provider', labelKey: 'shell.nav.provider' },
+  { id: 'threshold', labelKey: 'shell.nav.threshold' },
+  { id: 'rules', labelKey: 'shell.nav.rules' },
+  { id: 'capture', labelKey: 'shell.nav.capture' },
+  { id: 'data', labelKey: 'shell.nav.data' },
 ];
 
 const LINK_CLASS =
@@ -42,32 +52,35 @@ function Shield() {
 }
 
 function OptionsPage({ gateway }: { gateway: PanelGateway }) {
+  const { t } = useLanguage();
   const settings = useSubscribedValue(gateway.loadSettings, gateway.onSettingsChanged);
 
   const shell = (body: React.ReactNode) => (
     <div className="min-h-screen bg-surface">
       <header className="sticky top-0 z-10 border-b border-line bg-white">
-        <div className="mx-auto flex max-w-5xl items-center gap-2.5 px-6 py-3.5">
+        <div className="mx-auto flex max-w-7xl items-center gap-2.5 px-6 py-3.5">
           <Shield />
           <div className="min-w-0">
-            <h1 className="m-0 text-[15px] font-bold leading-tight">AnyFilter settings</h1>
+            <h1 className="m-0 text-[15px] font-bold leading-tight">
+              {t('shell.options.title')}
+            </h1>
             <p className="m-0 text-xs text-ink-2">
-              Filtering on X. Provider and threshold save as you edit; rules save when applied.
+              {t('shell.options.subtitle')}
             </p>
           </div>
         </div>
       </header>
-      <div className="mx-auto flex max-w-5xl gap-10 px-6 py-8">
-        <aside className="hidden w-52 flex-none lg:block">
-          <nav className="sticky top-24" aria-label="Settings sections">
+      <div className="mx-auto flex max-w-7xl gap-6 px-3 py-6 sm:px-6">
+        <aside className="hidden w-44 flex-none lg:block">
+          <nav className="sticky top-24" aria-label={t('shell.options.sections')}>
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-2">
-              On this page
+              {t('shell.options.onThisPage')}
             </p>
             <ul className="m-0 list-none space-y-1 p-0">
               {NAV.map((item) => (
                 <li key={item.id}>
                   <a href={`#${item.id}`} className={LINK_CLASS}>
-                    {item.label}
+                    {t(item.labelKey)}
                   </a>
                 </li>
               ))}
@@ -83,7 +96,7 @@ function OptionsPage({ gateway }: { gateway: PanelGateway }) {
     return shell(<p className="text-ink-2">{settings.message}</p>);
   }
   if (settings.status === 'loading') {
-    return shell(<p className="text-ink-2">Loading…</p>);
+    return shell(<p className="text-ink-2">{t('shell.loading')}</p>);
   }
 
   const current = settings.value;
@@ -91,11 +104,11 @@ function OptionsPage({ gateway }: { gateway: PanelGateway }) {
   return shell(
     <>
       <section className="mb-6 rounded-2xl border border-line bg-white p-5">
-        <h2 className="m-0 text-[15px] font-bold text-ink">How these settings work</h2>
+        <h2 className="m-0 text-[15px] font-bold text-ink">
+          {t('shell.options.howTitle')}
+        </h2>
         <p className="mb-0 mt-1.5 text-[13px] text-ink-2">
-          Pick the model provider and paste your key, set how confident the model must be before a
-          post is hidden, then tune the rules AnyFilter asks about. Data controls only clear what has
-          already been hidden and counted — your key, rules and threshold stay.
+          {t('shell.options.howBody')}
         </p>
         <div className="mt-3 flex flex-wrap gap-1.5 lg:hidden">
           {NAV.map((item) => (
@@ -104,12 +117,12 @@ function OptionsPage({ gateway }: { gateway: PanelGateway }) {
               href={`#${item.id}`}
               className="rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2"
             >
-              {item.label}
+              {t(item.labelKey)}
             </a>
           ))}
         </div>
       </section>
-      <div className="rounded-2xl border border-line bg-white p-5">
+      <div>
         <SettingsSection
           settings={current}
           onChange={(patch) => void gateway.saveSettings({ ...current, ...patch })}
@@ -118,6 +131,9 @@ function OptionsPage({ gateway }: { gateway: PanelGateway }) {
           onSaveRules={gateway.saveRules}
           onPreview={gateway.previewRule}
         />
+      </div>
+      <div className="mt-6 rounded-2xl border border-line bg-white p-5">
+        <CaptureSection gateway={gateway} />
       </div>
     </>,
   );
@@ -136,6 +152,29 @@ const gateway: PanelGateway = {
   override: (postId, shown) => client.override(postId, shown),
   clearData: () => client.clearData(),
   clearHidden: (kind) => client.clearHidden(kind),
+  loadCaptureState,
+  onCaptureStateChanged,
+  setCaptureRunState: (runState) => client.setCaptureRunState(runState),
+  clearCapture: () => client.clearCapture(),
+  loadVerificationCandidates,
+  loadVerificationStatus,
+  loadVerificationSampleDetail: (sampleId) => client.loadVerificationSampleDetail(sampleId),
+  enableVerificationBudget: () => client.enableVerificationBudget(),
+  disableVerificationBudget: () => client.disableVerificationBudget(),
+  runVerificationSample: (sampleId, ruleId) => client.runVerificationSample(sampleId, ruleId),
+  loadReviewCount,
+  onReviewCountChanged: onReviewRecordsChanged,
+  clearReviewRecords: () => client.clearReviewRecords(),
+  exportReviewRecords: async () => (await loadReviewStore()).records,
+  loadEvaluationOverview: () => client.loadEvaluationOverview(),
+  loadKeyPresence: () => client.loadKeyPresence(),
+  setEvaluationKey: (labeller, key) => client.setEvaluationKey(labeller, key),
+  loadEvaluationConnections: () => client.loadEvaluationConnections(),
+  setEvaluationConnection: (labeller, baseUrl, model) => client.setEvaluationConnection(labeller, baseUrl, model),
+  startEvaluationBatch: (labeller) => client.startEvaluationBatch(labeller),
+  stopEvaluationBatch: () => client.stopEvaluationBatch(),
+  loadEvaluationRunStatus: () => client.loadEvaluationRunStatus(),
+  exportEvaluation: () => client.exportEvaluation(),
 };
 
 const rootEl = document.getElementById('app');
@@ -143,6 +182,8 @@ if (!rootEl) throw new Error('options root element not found');
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
-    <OptionsPage gateway={gateway} />
+    <LanguageProvider>
+      <OptionsPage gateway={gateway} />
+    </LanguageProvider>
   </React.StrictMode>,
 );

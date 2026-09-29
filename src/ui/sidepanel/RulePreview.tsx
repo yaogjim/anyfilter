@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { PRICE_PER_INPUT_TOKEN } from '../../domain/panel-state';
 import type { PreviewResult, PreviewRuleResult, Rule } from '../../domain/rule';
+import { useLanguage, type Translate, type TranslationKey } from '../language';
 
 const INPUT_CLASS = 'w-full rounded-lg border border-[#cfd9de] bg-white px-2 py-1.5 text-[13px]';
 const LABEL_CLASS = 'mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-2';
@@ -12,27 +13,29 @@ const STATUS_TONE: Record<PreviewRuleResult['status'], string> = {
   'not-applicable': 'bg-surface text-ink-2',
 };
 
-const STATUS_TEXT: Record<PreviewRuleResult['status'], string> = {
-  match: 'would hide',
-  'no-match': 'below threshold',
-  unavailable: 'no score',
-  'not-applicable': 'not applicable',
+const STATUS_TEXT: Record<PreviewRuleResult['status'], TranslationKey> = {
+  match: 'settings.statusWouldHide',
+  'no-match': 'settings.statusBelowThreshold',
+  unavailable: 'settings.statusNoScore',
+  'not-applicable': 'settings.statusNotApplicable',
 };
 
-function errorText(error: string, detail: string): string {
+function errorText(error: string, detail: string, t: Translate): string {
   switch (error) {
     case 'no-key':
-      return 'Add an API key in Settings before testing.';
+      return t('settings.previewErrorNoKey');
     case 'auth':
-      return 'The provider rejected your API key (401/403). Check it in Settings.';
+      return t('settings.previewErrorAuth');
     case 'rate-limited':
-      return `The provider is rate-limiting this key${detail ? `: ${detail}` : '.'}`;
+      return detail === ''
+        ? t('settings.previewErrorRateLimited')
+        : t('settings.previewErrorRateLimitedWithDetail', { detail });
     case 'network':
-      return `Could not reach the provider: ${detail}`;
+      return t('settings.previewErrorNetwork', { detail });
     case 'invalid':
       return detail;
     case 'bad-response':
-      return `Unexpected provider response: ${detail}`;
+      return t('settings.previewErrorBadResponse', { detail });
     default:
       return detail === '' ? error : `${error}: ${detail}`;
   }
@@ -83,6 +86,7 @@ export function RulePreview({
     threshold: number;
   }) => Promise<PreviewResult>;
 }) {
+  const { t } = useLanguage();
   const [fields, setFields] = useState<Fields>({
     text: '',
     name: '',
@@ -142,12 +146,12 @@ export function RulePreview({
   return (
     <div className="space-y-2.5">
       <label className="block">
-        <span className={LABEL_CLASS}>Text to test</span>
+        <span className={LABEL_CLASS}>{t('settings.previewTextToTest')}</span>
         <textarea
           className={`${INPUT_CLASS} resize-y leading-snug`}
           rows={3}
           value={fields.text}
-          placeholder="Paste one post or reply to see how the draft rules would judge it…"
+          placeholder={t('settings.previewTextPlaceholder')}
           onChange={(event) => update({ text: event.target.value })}
         />
       </label>
@@ -157,12 +161,12 @@ export function RulePreview({
         aria-expanded={showContext}
         onClick={() => setShowContext((current) => !current)}
       >
-        {showContext ? 'Hide context' : 'Add context (author, quote, parent)'}
+        {showContext ? t('settings.previewHideContext') : t('settings.previewAddContext')}
       </button>
       {showContext && (
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
-            <span className={LABEL_CLASS}>Author name</span>
+            <span className={LABEL_CLASS}>{t('settings.previewAuthorName')}</span>
             <input
               type="text"
               className={INPUT_CLASS}
@@ -171,7 +175,7 @@ export function RulePreview({
             />
           </label>
           <label className="block">
-            <span className={LABEL_CLASS}>Handle</span>
+            <span className={LABEL_CLASS}>{t('settings.previewHandle')}</span>
             <input
               type="text"
               className={INPUT_CLASS}
@@ -181,7 +185,7 @@ export function RulePreview({
             />
           </label>
           <label className="col-span-2 block">
-            <span className={LABEL_CLASS}>Quoted post</span>
+            <span className={LABEL_CLASS}>{t('settings.previewQuotedPost')}</span>
             <textarea
               className={`${INPUT_CLASS} resize-y leading-snug`}
               rows={2}
@@ -190,7 +194,7 @@ export function RulePreview({
             />
           </label>
           <label className="col-span-2 block">
-            <span className={LABEL_CLASS}>Parent post (for replies)</span>
+            <span className={LABEL_CLASS}>{t('settings.previewParentPost')}</span>
             <textarea
               className={`${INPUT_CLASS} resize-y leading-snug`}
               rows={2}
@@ -200,17 +204,17 @@ export function RulePreview({
           </label>
         </div>
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           className="rounded-lg border border-[#cfd9de] bg-white px-3 py-1.5 font-bold disabled:opacity-50"
           disabled={running || fields.text.trim() === ''}
           onClick={run}
         >
-          {running ? 'Testing…' : 'Test text'}
+          {running ? t('settings.previewTesting') : t('settings.previewTestText')}
         </button>
         <span className="text-[11px] text-ink-2">
-          Sends this text to your provider and may cost tokens. Nothing is saved.
+          {t('settings.previewSendsNote')}
         </span>
       </div>
 
@@ -218,13 +222,11 @@ export function RulePreview({
         <div className="rounded-lg border border-line">
           {stale && (
             <p className="m-0 border-b border-line bg-surface px-2.5 py-1.5 text-[11px] text-ink-2">
-              The text, context, threshold, or rules changed after this test. Test again to refresh
-              it.
+              {t('settings.previewStaleNote')}
             </p>
           )}
           <p className="m-0 border-b border-line px-2.5 py-1.5 text-[11px] text-ink-2">
-            Each score is the model's probability that the post matches that rule; “would hide”
-            means it reached the threshold.
+            {t('settings.previewScoreNote')}
           </p>
           <ul className="m-0 list-none divide-y divide-line p-0">
             {shown.result.results.map((item) => (
@@ -233,7 +235,7 @@ export function RulePreview({
                 {item.score !== undefined && (
                   <span
                     className="flex-none text-[11px] tabular-nums text-ink-2"
-                    title="Model probability vs threshold"
+                    title={t('settings.previewModelProbabilityTitle')}
                   >
                     {Math.round(item.score * 100)}% vs {Math.round(item.threshold * 100)}%
                   </span>
@@ -241,19 +243,19 @@ export function RulePreview({
                 <span
                   className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_TONE[item.status]}`}
                 >
-                  {STATUS_TEXT[item.status]}
+                  {t(STATUS_TEXT[item.status])}
                 </span>
               </li>
             ))}
           </ul>
           <p className="m-0 border-t border-line px-2.5 py-1.5 text-[11px] text-ink-2">
-            {shown.result.tokens} input tokens · {costText(shown.result.tokens)}
+            {shown.result.tokens} {t('settings.previewInputTokens')} · {costText(shown.result.tokens)}
             {shown.result.model ? ` · ${shown.result.model}` : ''}
           </p>
         </div>
       ) : (
         <p className="m-0 rounded-lg bg-surface px-2.5 py-2 text-[12px] text-hide">
-          {errorText(shown.result.error, shown.result.detail)}
+          {errorText(shown.result.error, shown.result.detail, t)}
         </p>
       )}
     </div>

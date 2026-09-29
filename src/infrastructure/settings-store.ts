@@ -49,12 +49,25 @@ export function saveSettings(settings: Settings): Promise<void> {
     const next: Settings = {
       ...current,
       filterOn: typeof settings.filterOn === 'boolean' ? settings.filterOn : current.filterOn,
+      reviewMode:
+        typeof settings.reviewMode === 'boolean' ? settings.reviewMode : current.reviewMode,
       threshold: normalizedThreshold(settings.threshold, current.threshold),
       provider: isProviderId(settings.provider) ? settings.provider : current.provider,
       keys: normalizedKeys(settings.keys, current.keys),
       revision: Math.max(current.revision, normalizedRevision(settings.revision, current.revision)),
     };
     await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+  });
+}
+
+/** Turns review mode on or off for every X page. Touches only that field, so the
+ * review toolbar can call it from a page without carrying a copy of the keys. */
+export function saveReviewMode(on: boolean): Promise<void> {
+  return enqueue(async () => {
+    const stored = await chrome.storage.local.get(SETTINGS_KEY);
+    const current = normalizeSettings(stored[SETTINGS_KEY]);
+    if (current.reviewMode === on) return;
+    await chrome.storage.local.set({ [SETTINGS_KEY]: { ...current, reviewMode: on } });
   });
 }
 

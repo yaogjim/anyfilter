@@ -1,18 +1,29 @@
+import { useState } from 'react';
 import type { Settings } from '../../domain/settings';
-import { Header } from './Header';
+import { useLanguage } from '../language';
+import { CaptureSection } from './CaptureSection';
+import { Header, type PanelView } from './Header';
+import { EvaluationSection } from './EvaluationSection';
 import { HiddenGroups } from './HiddenGroups';
 import type { PanelGateway } from './PanelGateway';
+import { ReviewDataSection } from './ReviewDataSection';
+import { ReviewSwitch } from './ReviewSwitch';
+import { SettingsSection } from './SettingsSection';
 import { Tiles } from './Tiles';
 import { useSubscribedValue } from './use-subscribed-value';
+import { VerificationSection } from './VerificationSection';
 
 export function App({ gateway }: { gateway: PanelGateway }) {
+  const { t } = useLanguage();
+  const [view, setView] = useState<PanelView>('home');
+  const [settingsVisited, setSettingsVisited] = useState(false);
   const settings = useSubscribedValue(gateway.loadSettings, gateway.onSettingsChanged);
   const panel = useSubscribedValue(gateway.loadPanelState, gateway.onPanelStateChanged);
 
   if (settings.status === 'error') return <p className="p-4 text-ink-2">{settings.message}</p>;
   if (panel.status === 'error') return <p className="p-4 text-ink-2">{panel.message}</p>;
   if (settings.status === 'loading' || panel.status === 'loading') {
-    return <p className="p-4 text-ink-2">Loading…</p>;
+    return <p className="p-4 text-ink-2">{t('shell.loading')}</p>;
   }
 
   const current = settings.value;
@@ -20,29 +31,65 @@ export function App({ gateway }: { gateway: PanelGateway }) {
   const updateSettings = (patch: Partial<Settings>): void => {
     void gateway.saveSettings({ ...current, ...patch });
   };
+  const navigate = (next: PanelView): void => {
+    if (next === 'settings') setSettingsVisited(true);
+    setView(next);
+  };
   const labelOrder = current.rules.map((rule) => rule.label);
 
   return (
-    <div className="space-y-2.5 p-3">
-      <section className="rounded-xl border border-line bg-white p-3.5">
+    <main className="mx-auto max-w-6xl space-y-3 p-3 sm:p-4">
+      <h1 className="sr-only">AnyFilter</h1>
+      <div className="sticky top-0 z-20 rounded-xl border border-line bg-white p-2.5 shadow-sm sm:p-3.5">
         <Header
           settings={current}
           state={state}
+          view={view}
+          onNavigate={navigate}
           onToggle={(filterOn) => updateSettings({ filterOn })}
         />
-        <Tiles state={state} />
-      </section>
-      <HiddenGroups state={state} labelOrder={labelOrder} onOverride={gateway.override} />
-      <button
-        type="button"
-        className="flex w-full items-center justify-between rounded-xl border border-line bg-white px-3.5 py-2.5 text-left text-[15px] font-bold text-ink transition hover:bg-surface"
-        onClick={() => void chrome.runtime.openOptionsPage()}
-      >
-        Settings
-        <span className="text-ink-2" aria-hidden="true">
-          ›
-        </span>
-      </button>
-    </div>
+      </div>
+      {view === 'home' && (
+        <>
+          <section className="rounded-xl border border-line bg-white p-3.5" aria-label={t('shell.overview')}>
+            <Tiles state={state} />
+          </section>
+          <ReviewSwitch scope="home" on={current.reviewMode} onChange={(reviewMode) => updateSettings({ reviewMode })} />
+          <HiddenGroups state={state} labelOrder={labelOrder} onOverride={gateway.override} />
+        </>
+      )}
+      {settingsVisited && (
+        <div hidden={view !== 'settings'}>
+          <div className="mb-3 flex items-center justify-between gap-2 px-1">
+            <h2 className="m-0 text-[17px] font-bold">{t('shell.settingsHeading')}</h2>
+            <button
+              type="button"
+              className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-2 hover:bg-surface"
+              onClick={() => void chrome.runtime.openOptionsPage()}
+            >
+              {t('shell.openFullPage')}
+            </button>
+          </div>
+          <SettingsSection
+            settings={current}
+            onChange={updateSettings}
+            onClearData={gateway.clearData}
+            onClearHidden={gateway.clearHidden}
+            onSaveRules={gateway.saveRules}
+            onPreview={gateway.previewRule}
+          />
+        </div>
+      )}
+      {view === 'verification' && (
+        <>
+          <div className="rounded-xl border border-line bg-white p-3.5">
+            <CaptureSection gateway={gateway} />
+          </div>
+          <ReviewDataSection gateway={gateway} />
+          <EvaluationSection gateway={gateway} />
+          <VerificationSection gateway={gateway} settings={current} />
+        </>
+      )}
+    </main>
   );
 }

@@ -11,6 +11,7 @@ import { activeKey, normalizeSettings } from '../../src/domain/settings';
 import {
   loadSettings,
   onSettingsChanged,
+  saveReviewMode,
   saveRules,
   saveSettings,
 } from '../../src/infrastructure/settings-store';
@@ -145,4 +146,28 @@ test('a cleared panel state and cached scores leave rules and keys in place', as
   assert.deepEqual(stored.keys, KEYS);
   assert.equal(stored.rules.length, 10);
   assert.deepEqual(handle.sessionKeys(), []);
+});
+test('review mode is one stored switch that starts on and survives every other save', async () => {
+  assert.equal(normalizeSettings(undefined).reviewMode, true, 'a fresh install starts in review mode');
+  assert.equal(normalizeSettings({ reviewMode: 'no' }).reviewMode, true, 'a malformed value falls back to the default');
+  assert.equal(normalizeSettings({ reviewMode: false }).reviewMode, false);
+
+  const handle = installChrome({ local: seed({ keys: KEYS, reviewMode: false }) });
+  const seen = [];
+  const stop = onSettingsChanged((settings) => seen.push(settings));
+  await saveReviewMode(true);
+  assert.equal((await loadSettings()).reviewMode, true);
+  assert.equal(seen.at(-1).reviewMode, true, 'every open page hears about it');
+  assert.deepEqual((await loadSettings()).keys, KEYS, 'flipping it leaves the keys alone');
+
+  const before = seen.length;
+  await saveReviewMode(true);
+  assert.equal(seen.length, before, 'setting the same value writes nothing');
+
+  await saveSettings({ ...(await loadSettings()), threshold: 0.9 });
+  assert.equal((await loadSettings()).reviewMode, true, 'a panel save that does not mention it keeps it');
+  await saveSettings({ ...(await loadSettings()), reviewMode: false });
+  assert.equal((await loadSettings()).reviewMode, false);
+  stop();
+  void handle;
 });

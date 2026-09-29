@@ -11,6 +11,9 @@ import {
 
 export interface Settings {
   filterOn: boolean;
+  /** In-timeline review mode, for every X page: posts stay visible and carry the
+   * judgement instead of being hidden. One stored switch, not per-page memory. */
+  reviewMode: boolean;
   /** Legacy mirror of enabled built-in rules. Always derived from `rules`. */
   disabled: string[];
   threshold: number;
@@ -24,6 +27,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   filterOn: true,
+  reviewMode: true,
   disabled: [],
   threshold: 0.7,
   custom: [],
@@ -105,6 +109,8 @@ export function normalizeSettings(raw: unknown): Settings {
   const rules = reconcileRules(record);
   return {
     filterOn: typeof record.filterOn === 'boolean' ? record.filterOn : DEFAULT_SETTINGS.filterOn,
+    reviewMode:
+      typeof record.reviewMode === 'boolean' ? record.reviewMode : DEFAULT_SETTINGS.reviewMode,
     disabled: rules.filter((rule) => rule.source === 'builtin' && !rule.enabled).map((rule) => rule.id),
     threshold: normalizedThreshold(record.threshold),
     custom: rules.filter((rule) => rule.source === 'custom').map((rule) => rule.label),

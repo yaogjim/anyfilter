@@ -1,6 +1,6 @@
 {
   "name": "anyfilter",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -12,6 +12,10 @@
     "postinstall": "wxt prepare",
     "test:unit": "node scripts/unit-tests.mjs",
     "eval:rules": "node scripts/eval-rules.mjs",
+    "review:blind": "node scripts/blind-review.mjs",
+    "eval:import": "node scripts/import-evaluation-export.mjs",
+    "eval:report": "node scripts/evaluation-report.mjs",
+    "review:report": "node scripts/review-labels-report.mjs",
     "e2e": "node scripts/e2e-offline.mjs"
   },
   "dependencies": {

@@ -9,6 +9,7 @@ import {
 import { RulePreview } from './RulePreview';
 import { RuleRow } from './RuleEditor';
 import { newCustomRule, rulesEqual, withRule, withoutRule } from './rules-draft';
+import { useLanguage } from '../language';
 
 const BUTTON_CLASS = 'rounded-lg border border-[#cfd9de] bg-white px-3 py-1.5 font-bold';
 
@@ -29,6 +30,7 @@ export function RuleManager({
   onPreview: (input: PreviewInput) => Promise<PreviewResult>;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const { locale, t } = useLanguage();
   const [draft, setDraft] = useState<Rule[]>(() => [...rules]);
   // The revision the draft is based on. It only follows the saved revision while
   // there are no unsaved edits, so a save from another panel can never be
@@ -48,6 +50,8 @@ export function RuleManager({
     (show === 'all' || rule.source === show) &&
     `${rule.label} ${rule.include} ${rule.exclude}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
   );
+
+  useEffect(() => { setMessage(null); }, [locale]);
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -102,9 +106,12 @@ export function RuleManager({
         setBaseRevision(result.settings.revision);
         if (editSeq.current === submittedSeq) {
           setDraft(result.settings.rules);
-          setMessage({ tone: 'ok', text: 'Rules saved and applied.' });
+          setMessage({ tone: 'ok', text: t('settings.rulesSaved') });
         } else {
-          setMessage({ tone: 'ok', text: 'Saved. Your newer edits are still unsaved.' });
+          setMessage({
+            tone: 'ok',
+            text: t('settings.rulesSavedWithNewerEdits'),
+          });
         }
         return;
       }
@@ -112,14 +119,18 @@ export function RuleManager({
         setConflict(true);
         setMessage({
           tone: 'error',
-          text: 'Rules changed in another panel since you started editing. Reload to get the latest before saving.',
+          text: t('settings.rulesConflict'),
         });
         return;
       }
       setMessage({ tone: 'error', text: result.detail });
     }).catch((error: unknown) => {
       setSaving(false);
-      setMessage({ tone: 'error', text: `Could not save rules: ${error instanceof Error ? error.message : String(error)}` });
+      const detail = error instanceof Error ? error.message : String(error);
+      setMessage({
+        tone: 'error',
+        text: t('settings.rulesSaveFailed', { detail }),
+      });
     });
   };
 
@@ -134,32 +145,34 @@ export function RuleManager({
     setDraft([...rules]);
     setBaseRevision(revision);
     setConflict(false);
-    setMessage({ tone: 'ok', text: 'Reloaded the latest saved rules.' });
+    setMessage({ tone: 'ok', text: t('settings.rulesReloaded') });
   };
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="m-0 text-lg font-bold text-ink">Rules</h3>
-          <p className="mt-1 text-xs text-ink-2">Choose a rule to edit its meaning. Changes stay in this tab until you save.</p>
+          <h3 className="m-0 text-lg font-bold text-ink">{t('settings.rules')}</h3>
+          <p className="mt-1 text-xs text-ink-2">
+            {t('settings.rulesIntro')}
+          </p>
         </div>
         <button type="button" className="rounded-lg bg-ink px-3 py-2 font-bold text-white" onClick={addRule}>
-          New rule
+          {t('settings.newRule')}
         </button>
       </div>
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 @[700px]:grid-cols-[minmax(200px,260px)_minmax(0,1fr)]">
         <div className="overflow-hidden rounded-xl border border-line bg-white">
           <div className="space-y-2 border-b border-line p-3">
             <input
               type="search"
-              aria-label="Search rules"
-              placeholder="Search rules…"
+              aria-label={t('settings.searchRules')}
+              placeholder={t('settings.searchRulesPlaceholder')}
               className="w-full rounded-lg border border-line px-3 py-2"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <div className="flex gap-1" role="group" aria-label="Filter rules">
+            <div className="flex gap-1" role="group" aria-label={t('settings.filterRules')}>
               {(['all', 'builtin', 'custom'] as const).map((source) => (
                 <button
                   type="button"
@@ -168,17 +181,21 @@ export function RuleManager({
                   onClick={() => setShow(source)}
                   className={`rounded-lg px-2.5 py-1 text-xs font-bold ${show === source ? 'bg-ink text-white' : 'bg-surface text-ink-2'}`}
                 >
-                  {source === 'all' ? 'All' : source === 'builtin' ? 'Built-in' : 'Custom'}
+                  {source === 'all'
+                    ? t('settings.sourceAll')
+                    : source === 'builtin'
+                      ? t('settings.sourceBuiltIn')
+                      : t('settings.sourceCustom')}
                 </button>
               ))}
             </div>
           </div>
-          <div className="max-h-[70vh] space-y-1 overflow-y-auto p-2" role="list" aria-label="Rules">
+          <div className="max-h-[32vh] space-y-1 overflow-y-auto overscroll-contain p-2 @[700px]:max-h-[70vh]" role="list" aria-label={t('settings.rules')}>
             {visibleRules.map((rule) => (
               <div key={rule.id} role="listitem" className={`flex items-center gap-2 rounded-lg px-2 py-1 ${openId === rule.id ? 'bg-surface' : 'hover:bg-surface'}`}>
                 <input
                   type="checkbox"
-                  aria-label={`Enable ${rule.label}`}
+                  aria-label={t('settings.enableRule', { name: rule.label })}
                   checked={rule.enabled}
                   onChange={(event) => patch(rule.id, { enabled: event.target.checked })}
                 />
@@ -190,17 +207,26 @@ export function RuleManager({
                   className="min-w-0 flex-1 py-2 text-left"
                 >
                   <span className="block truncate text-sm font-semibold text-ink">{rule.label}</span>
-                  <span className="text-[11px] text-ink-2">{rule.kind === 'local' ? 'On-page check' : 'Jev question'} · {rule.source === 'builtin' ? 'Built-in' : 'Custom'}</span>
+                  <span className="text-[11px] text-ink-2">
+                    {rule.kind === 'local' ? t('settings.kindOnPageCheck') : t('settings.kindJevQuestion')} ·{' '}
+                    {rule.source === 'builtin' ? t('settings.sourceBuiltIn') : t('settings.sourceCustom')}
+                  </span>
                 </button>
               </div>
             ))}
-            {visibleRules.length === 0 && <p className="px-2 text-xs text-ink-2">No rules match this search.</p>}
+            {visibleRules.length === 0 && (
+              <p className="px-2 text-xs text-ink-2">{t('settings.noRulesMatch')}</p>
+            )}
           </div>
         </div>
         <div className="min-w-0 rounded-xl border border-line bg-white p-4">
           {selected ? (
             <>
-              <p className="m-0 mb-2 text-xs text-ink-2">{selected.kind === 'local' ? 'Fixed local detector' : 'Describe the match, exclusions and examples below. You can inspect the exact question sent to Jev.'}</p>
+              <p className="m-0 mb-2 text-xs text-ink-2">
+                {selected.kind === 'local'
+                  ? t('settings.fixedLocalDetector')
+                  : t('settings.describeMatchIntro')}
+              </p>
               <RuleRow
                 key={selected.id}
                 rule={selected}
@@ -210,10 +236,14 @@ export function RuleManager({
                 onDelete={selected.source === 'custom' ? () => deleteRule(selected.id) : null}
               />
             </>
-          ) : <p className="m-0 text-ink-2">Select a rule on the left to edit it.</p>}
+          ) : (
+            <p className="m-0 text-ink-2">{t('settings.selectRuleHint')}</p>
+          )}
         </div>
       </div>
-      <p className="mt-2 text-xs text-ink-2">All ten built-in rules start enabled, but their accuracy has not been verified. Ads use a local page marker; text rules need an API key and send their questions to Jev.</p>
+      <p className="mt-2 text-xs text-ink-2">
+        {t('settings.builtInRulesNote')}
+      </p>
 
       <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-white/95 p-3 shadow-sm backdrop-blur">
         <button
@@ -222,16 +252,15 @@ export function RuleManager({
           disabled={!dirty || saving}
           onClick={save}
         >
-          {saving ? 'Saving…' : 'Save and apply'}
+          {saving ? t('settings.saving') : t('settings.saveAndApply')}
         </button>
         <button type="button" className={BUTTON_CLASS} disabled={!dirty || saving} onClick={cancel}>
-          Cancel
+          {t('settings.cancel')}
         </button>
-        {dirty && <span className="text-[11px] text-ink-2">Unsaved changes</span>}
+        {dirty && <span className="text-[11px] text-ink-2">{t('settings.unsavedChanges')}</span>}
       </div>
       <p className="mt-1 text-[11px] text-ink-2">
-        Saving re-scores posts affected by a changed rule. Renaming a rule or changing only its
-        threshold reuses cached scores. Cancel leaves the saved rules untouched.
+        {t('settings.saveRescoreNote')}
       </p>
       {message && (
         <p
@@ -242,15 +271,17 @@ export function RuleManager({
           {message.text}
           {conflict && (
             <button type="button" className="ml-2 underline" onClick={reload}>
-              Reload
+              {t('settings.reload')}
             </button>
           )}
         </p>
       )}
 
-      <section className="mt-6 rounded-xl border border-line bg-white p-4" aria-label="Test a text">
-        <h3 className="m-0 mb-2 text-lg font-bold text-ink">Test a text</h3>
-        <p className="mb-4 text-xs text-ink-2">Test your current draft before saving. This sends only the text you enter to your chosen provider and does not change the feed.</p>
+      <section className="mt-6 rounded-xl border border-line bg-white p-4" aria-label={t('settings.testTextTitle')}>
+        <h3 className="m-0 mb-2 text-lg font-bold text-ink">{t('settings.testTextTitle')}</h3>
+        <p className="mb-4 text-xs text-ink-2">
+          {t('settings.testDraftIntro')}
+        </p>
         <RulePreview rules={draft} threshold={threshold} onPreview={onPreview} />
       </section>
     </>

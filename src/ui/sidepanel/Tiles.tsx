@@ -5,6 +5,7 @@ import {
   secondsSaved,
   type PanelState,
 } from '../../domain/panel-state';
+import { useLanguage } from '../language';
 import { formatDuration } from './format-duration';
 import { useCombo } from './use-combo';
 import { useCountUp } from './use-count-up';
@@ -66,16 +67,17 @@ const asDollars = (value: number): string =>
   value > 0 && value < 0.001 ? '<$0.001' : `$${value.toFixed(3)}`;
 
 export function Tiles({ state }: { state: PanelState }) {
+  const { t } = useLanguage();
   const hidden = hiddenCount(state);
   const scanned = scannedCount(state);
   return (
-    <div className="mt-3 grid grid-cols-3 gap-2">
-      <Tile label="Hidden posts" value={hidden} format={asInt} tone="hide" bump />
-      <Tile label="Kept posts" value={scanned - hidden} format={asInt} tone="keep" />
-      <Tile label="Posts scanned" value={scanned} format={asInt} />
-      <Tile label="Time saved" value={secondsSaved(state)} format={formatDuration} />
-      <Tile label="Spent on Jev" value={costOf(state)} format={asDollars} />
-      <Tile label="Tokens used" value={state.tokens} format={asCompact} />
+    <div className="grid grid-cols-3 gap-2">
+      <Tile label={t('shell.tiles.hidden')} value={hidden} format={asInt} tone="hide" bump />
+      <Tile label={t('shell.tiles.kept')} value={scanned - hidden} format={asInt} tone="keep" />
+      <Tile label={t('shell.tiles.scanned')} value={scanned} format={asInt} />
+      <Tile label={t('shell.tiles.timeSaved')} value={secondsSaved(state)} format={formatDuration} />
+      <Tile label={t('shell.tiles.spent')} value={costOf(state)} format={asDollars} />
+      <Tile label={t('shell.tiles.tokens')} value={state.tokens} format={asCompact} />
     </div>
   );
 }

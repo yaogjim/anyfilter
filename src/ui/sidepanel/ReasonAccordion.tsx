@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { groupByParent, type ReasonEntry, type ReasonGroup } from '../../domain/panel-state';
 import { statusUrl, type ParentPost, type PostKind } from '../../domain/post';
+import { useLanguage } from '../language';
 import { Avatar } from './Avatar';
 import { HiddenRow } from './HiddenRow';
 import { useBump } from './use-bump';
 
 function ParentLine({ parent }: { parent: ParentPost | null }) {
+  const { t } = useLanguage();
   if (!parent) {
-    return <div className="rounded-md bg-surface px-2 py-1 text-[11px] text-ink-2">In a conversation</div>;
+    return <div className="rounded-md bg-surface px-2 py-1 text-[11px] text-ink-2">{t('shell.reason.inConversation')}</div>;
   }
   return (
     <a
@@ -17,7 +19,7 @@ function ParentLine({ parent }: { parent: ParentPost | null }) {
       rel="noreferrer"
       title={parent.text}
     >
-      <span className="flex-none">Replies under</span>
+      <span className="flex-none">{t('shell.reason.repliesUnder')}</span>
       <Avatar url={parent.avatarUrl} size="xs" />
       <span className="flex-none">{parent.name || `@${parent.handle}`}</span>
       <span className="min-w-0 truncate opacity-70">{parent.text}</span>

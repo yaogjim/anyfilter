@@ -1,11 +1,12 @@
 import { groupByReason, hiddenOfKind, type PanelState } from '../../domain/panel-state';
 import type { PostKind } from '../../domain/post';
+import { useLanguage, type TranslationKey } from '../language';
 import { ReasonAccordion } from './ReasonAccordion';
 import { useBump } from './use-bump';
 
-const SECTIONS: ReadonlyArray<{ kind: PostKind; title: string; empty: string }> = [
-  { kind: 'post', title: 'Posts hidden', empty: 'None yet.' },
-  { kind: 'reply', title: 'Replies hidden', empty: 'None yet.' },
+const SECTIONS: ReadonlyArray<{ kind: PostKind; titleKey: TranslationKey; emptyKey: TranslationKey }> = [
+  { kind: 'post', titleKey: 'shell.hidden.postsTitle', emptyKey: 'shell.hidden.noneYet' },
+  { kind: 'reply', titleKey: 'shell.hidden.repliesTitle', emptyKey: 'shell.hidden.noneYet' },
 ];
 
 function Section({
@@ -56,12 +57,13 @@ export function HiddenGroups({
   labelOrder: readonly string[];
   onOverride: (postId: string, shown: boolean) => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const populated = SECTIONS.filter((section) => hiddenOfKind(state, section.kind).length > 0);
   if (populated.length === 0) {
     return (
       <section className="rounded-xl border border-line bg-white p-3.5" data-anyfilter-section="post">
-        <h2 className="m-0 text-[15px] font-bold text-ink">Posts hidden</h2>
-        <p className="m-0 py-1.5 text-ink-2">Nothing hidden yet. Scroll your timeline to start.</p>
+        <h2 className="m-0 text-[15px] font-bold text-ink">{t('shell.hidden.postsTitle')}</h2>
+        <p className="m-0 py-1.5 text-ink-2">{t('shell.hidden.nothingYet')}</p>
       </section>
     );
   }
@@ -70,8 +72,8 @@ export function HiddenGroups({
       {populated.map((section) => (
         <Section
           key={section.kind}
-          title={section.title}
-          empty={section.empty}
+          title={t(section.titleKey)}
+          empty={t(section.emptyKey)}
           kind={section.kind}
           state={state}
           labelOrder={labelOrder}

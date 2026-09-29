@@ -34,6 +34,8 @@ const ADAPTERS = [
     url: VERCEL_URL,
     answers: vercelAnswers,
     probabilityField: 'probability',
+    tokenFields: { input: 'inputTokens', output: 'outputTokens' },
+    reportsCost: true,
   },
   {
     name: 'typesafe',
@@ -41,10 +43,12 @@ const ADAPTERS = [
     url: TYPESAFE_URL,
     answers: typesafeAnswers,
     probabilityField: 'noul',
+    tokenFields: { input: 'input_tokens', output: 'output_tokens' },
+    reportsCost: false,
   },
 ];
 
-for (const { name, adapter, url, answers, probabilityField } of ADAPTERS) {
+for (const { name, adapter, url, answers, probabilityField, tokenFields, reportsCost } of ADAPTERS) {
   test(`[${name}] buildRequest targets its endpoint with the key in the header`, () => {
     const request = adapter.buildRequest(KEY, { text: 'hello' }, QUESTIONS);
 
@@ -100,7 +104,111 @@ for (const { name, adapter, url, answers, probabilityField } of ADAPTERS) {
     assert.equal(adapter.inputTokens({ usage: {} }), 0);
     assert.equal(adapter.inputTokens(null), 0);
   });
+
+  test(`[${name}] readMetadata reads the reported model and both token counts`, () => {
+    const meta = adapter.readMetadata({
+      model: 'proof-of-answer-model',
+      answers: {},
+      usage: { [tokenFields.input]: 296, [tokenFields.output]: 20 },
+    });
+
+    assert.equal(meta.model, 'proof-of-answer-model');
+    assert.equal(meta.inputTokens, 296);
+    assert.equal(meta.outputTokens, 20);
+  });
+
+  test(`[${name}] readMetadata reports an unknown model rather than the requested id`, () => {
+    for (const junk of [undefined, null, '', '   ', 42, {}, []]) {
+      const meta = adapter.readMetadata({ model: junk, usage: {} });
+      assert.equal(meta.model, undefined, `model ${JSON.stringify(junk)} must stay unknown`);
+    }
+    // The requested model id is never substituted for what the provider actually
+    // said it ran.
+    const absent = adapter.readMetadata({ usage: {} });
+    assert.equal(absent.model, undefined);
+    assert.notEqual(absent.model, adapter.model);
+  });
+
+  test(`[${name}] readMetadata never fabricates a token count`, () => {
+    for (const value of [-1, 1.5, '12', NaN, Infinity, null, {}]) {
+      const meta = adapter.readMetadata({
+        usage: { [tokenFields.input]: value, [tokenFields.output]: 5 },
+      });
+      assert.equal(meta.inputTokens, undefined, `${JSON.stringify(value)} is not a token count`);
+      assert.equal(meta.outputTokens, 5);
+    }
+    for (const json of [null, undefined, {}, { usage: null }, { usage: [] }]) {
+      const meta = adapter.readMetadata(json);
+      assert.equal(meta.inputTokens, undefined);
+      assert.equal(meta.outputTokens, undefined);
+    }
+  });
+
+  test(`[${name}] readMetadata reads only its own provider's token field names`, () => {
+    const foreignInput = probabilityField === 'probability' ? 'input_tokens' : 'inputTokens';
+    const foreignOutput = probabilityField === 'probability' ? 'output_tokens' : 'outputTokens';
+    const meta = adapter.readMetadata({ usage: { [foreignInput]: 7, [foreignOutput]: 9 } });
+
+    assert.equal(meta.inputTokens, undefined, `the ${name} adapter must not read "${foreignInput}"`);
+    assert.equal(meta.outputTokens, undefined);
+  });
+
+  test(`[${name}] readMetadata leaves cost unknown when no gateway cost is present`, () => {
+    assert.equal(adapter.readMetadata({ usage: {} }).cost, undefined);
+    assert.equal(adapter.readMetadata(null).cost, undefined);
+  });
 }
+
+test('[vercel] readMetadata reads the gateway cost as a decimal string or a number', () => {
+  const costOf = (value) =>
+    vercelGatewayAdapter.readMetadata({ providerMetadata: { gateway: { cost: value } } }).cost;
+
+  assert.equal(costOf('0.00001155'), 0.00001155);
+  assert.equal(costOf(0.25), 0.25);
+  assert.equal(costOf('0'), 0);
+});
+
+test('[vercel] readMetadata keeps a missing or malformed gateway cost unknown', () => {
+  const costOf = (json) => vercelGatewayAdapter.readMetadata(json).cost;
+
+  for (const junk of [undefined, null, '', '  ', 'free', -0.5, NaN, Infinity, {}, []]) {
+    assert.equal(costOf({ providerMetadata: { gateway: { cost: junk } } }), undefined);
+  }
+  for (const json of [
+    null,
+    undefined,
+    {},
+    { providerMetadata: null },
+    { providerMetadata: { gateway: null } },
+  ]) {
+    assert.equal(costOf(json), undefined);
+  }
+  // The sibling gateway figures are deliberately not used as a fallback.
+  assert.equal(costOf({ providerMetadata: { gateway: { marketCost: '0.9' } } }), undefined);
+  assert.equal(costOf({ providerMetadata: { gateway: { gatewayCost: '0.9' } } }), undefined);
+});
+
+test('[typesafe] readMetadata reports the versioned model, not the requested alias', () => {
+  const meta = typesafeDirectAdapter.readMetadata({
+    model: 'jev-1.13.0',
+    answers: {},
+    usage: { input_tokens: 296, output_tokens: 20 },
+  });
+
+  assert.equal(meta.model, 'jev-1.13.0');
+  assert.notEqual(meta.model, typesafeDirectAdapter.model);
+  assert.equal(meta.cost, undefined, 'TypeSafe direct reports no cost of its own');
+});
+
+test('[typesafe] readMetadata ignores a gateway cost envelope', () => {
+  const meta = typesafeDirectAdapter.readMetadata({
+    model: 'jev-1.13.0',
+    usage: {},
+    providerMetadata: { gateway: { cost: '0.00001155' } },
+  });
+
+  assert.equal(meta.cost, undefined);
+});
 
 test('[typesafe] a full classify round trip uses the direct endpoint and field', async () => {
   installChrome({

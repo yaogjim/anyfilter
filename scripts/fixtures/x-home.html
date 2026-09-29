@@ -10,6 +10,7 @@
   </style>
 </head>
 <body>
+  <a data-testid="AppTabBar_Profile_Link" href="/fixture_user">Profile</a>
   <main>
     <div data-testid="primaryColumn">
       <section>
@@ -58,6 +59,11 @@
                   <div data-testid="User-Name"><span>angry_anon</span><a href="/angry_anon88">@angry_anon88</a></div>
                   <a href="/angry_anon88/status/1004"><time datetime="2026-09-19T01:10:00.000Z">2h</time></a>
                   <div data-testid="tweetText">people from that country are all parasites and should be kicked out</div>
+                  <div role="group" style="display:flex;gap:24px;margin-top:8px">
+                    <button type="button" data-testid="reply">Reply</button>
+                    <button type="button" data-testid="retweet">Repost</button>
+                    <button type="button" data-testid="like">Like</button>
+                  </div>
                 </article>
               </div>
             </div>

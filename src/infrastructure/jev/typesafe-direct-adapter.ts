@@ -1,5 +1,5 @@
 import { inputTokensFrom, questionsAs, scoresFrom } from './jev-payload';
-import type { ProviderAdapter } from './provider-adapter';
+import { readModel, readUsage, type ProviderAdapter } from './provider-adapter';
 
 export const typesafeDirectAdapter: ProviderAdapter = {
   id: 'typesafe',
@@ -14,4 +14,12 @@ export const typesafeDirectAdapter: ProviderAdapter = {
   }),
   parseScores: (json) => scoresFrom(json, 'noul'),
   inputTokens: (json) => inputTokensFrom(json, 'input_tokens'),
+  // TypeSafe direct reports the versioned model it actually ran (e.g.
+  // "jev-1.13.0"), plus `usage.input_tokens` / `usage.output_tokens`. It reports
+  // no cost of its own, so `cost` stays unknown rather than being guessed.
+  readMetadata: (json) => ({
+    model: readModel(json),
+    ...readUsage(json, { inputTokens: 'input_tokens', outputTokens: 'output_tokens' }),
+    cost: undefined,
+  }),
 };

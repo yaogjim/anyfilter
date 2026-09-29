@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { HiddenEntry } from '../../domain/panel-state';
 import { postUrl } from '../../domain/post';
 import { reasonText, type Reason } from '../../domain/verdict';
+import { useLanguage } from '../language';
 import { Avatar } from './Avatar';
 import { PostCard } from './PostCard';
 
@@ -16,6 +17,7 @@ export function HiddenRow({
   reason: Reason;
   onOverride: (postId: string, shown: boolean) => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const { post } = entry;
   return (
@@ -31,7 +33,7 @@ export function HiddenRow({
           <b className="text-ink">{post.name || `@${post.handle}`}</b> {post.text}
         </span>
         <span className="text-xs tabular-nums text-ink-2">
-          {reason.categoryId === 'ads' ? 'ad' : `${Math.round(reason.probability * 100)}%`}
+          {reason.categoryId === 'ads' ? t('shell.hidden.adBadge') : `${Math.round(reason.probability * 100)}%`}
         </span>
       </button>
       {open && (
@@ -41,10 +43,10 @@ export function HiddenRow({
             className={ACTION_CLASS}
             onClick={() => void onOverride(post.id, !entry.shown)}
           >
-            {entry.shown ? 'Hide again' : 'Put back in feed'}
+            {entry.shown ? t('shell.hidden.hideAgain') : t('shell.hidden.putBack')}
           </button>
           <a className={ACTION_CLASS} href={postUrl(post)} target="_blank" rel="noreferrer">
-            Open on X ↗
+            {t('shell.hidden.openOnX')}
           </a>
           <span>{entry.reasons.map(reasonText).join(' · ')}</span>
         </PostCard>
