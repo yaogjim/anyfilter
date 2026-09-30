@@ -1,3 +1,4 @@
+import type { AutoState } from '../../domain/auto-mode';
 import type { JudgePageResult } from '../../domain/article-judgement';
 import type { ReviewRecord } from '../../domain/review-record';
 import type { CaptureRunState, CaptureState } from '../../domain/capture';
@@ -36,6 +37,21 @@ export interface PageGateway {
   loadActiveTab(): Promise<ActiveTab>;
   onActiveTabChanged(listener: (tab: ActiveTab) => void): () => void;
   judgePage(tabId: number): Promise<JudgePageResult>;
+  /** Auto mode. The state and the results are read where they are stored; the
+   * switch and its restarts go through the background, which is the only writer. */
+  loadAutoState(): Promise<AutoState>;
+  onAutoStateChanged(listener: (state: AutoState) => void): () => void;
+  setAutoEnabled(enabled: boolean): Promise<AutoState | null>;
+  resumeAuto(): Promise<AutoState | null>;
+  resetAutoSpend(): Promise<AutoState | null>;
+  /** The automatic result for this tab, only if it was made for the page now showing. */
+  loadAutoResult(tabId: number, address: string): Promise<JudgePageResult | null>;
+  onAutoResultsChanged(listener: () => void): () => void;
+  /** Site authorisations are the browser's optional host permissions. */
+  listAuthorisedSites(): Promise<string[]>;
+  onAuthorisedSitesChanged(listener: () => void): () => void;
+  requestSite(pattern: string): Promise<boolean>;
+  removeSite(pattern: string): Promise<boolean>;
 }
 
 export interface PanelGateway {

@@ -1,4 +1,5 @@
 import { isJudgePageResult, type JudgePageResult } from '../domain/article-judgement';
+import { normalizeAutoState, type AutoState } from '../domain/auto-mode';
 import type { ClassifierPort } from '../domain/classifier-port';
 import {
   isCaptureState,
@@ -99,6 +100,28 @@ export class BackgroundClient implements ClassifierPort, VerdictSink {
         error: 'network',
         detail: error instanceof Error ? error.message : String(error),
       };
+    }
+  }
+
+  /** The auto mode switch and its two restarts. The reply is the new state. */
+  async setAutoEnabled(enabled: boolean): Promise<AutoState | null> {
+    return this.autoCall({ type: 'auto-set-enabled', enabled });
+  }
+
+  async resumeAuto(): Promise<AutoState | null> {
+    return this.autoCall({ type: 'auto-resume' });
+  }
+
+  async resetAutoSpend(): Promise<AutoState | null> {
+    return this.autoCall({ type: 'auto-reset-spend' });
+  }
+
+  private async autoCall(message: RuntimeMessage): Promise<AutoState | null> {
+    try {
+      const response = await send(message);
+      return response === null || response === undefined ? null : normalizeAutoState(response);
+    } catch {
+      return null;
     }
   }
 

@@ -19,7 +19,8 @@
     "rule:replay": "node scripts/rule-replay.mjs",
     "rule:apply": "node scripts/apply-rule-pack.mjs",
     "e2e": "node scripts/e2e-offline.mjs",
-    "e2e:page": "node scripts/e2e-page-judge.mjs"
+    "e2e:page": "node scripts/e2e-page-judge.mjs",
+    "e2e:auto": "node scripts/e2e-auto-mode.mjs"
   },
   "dependencies": {
     "defuddle": "0.19.4",

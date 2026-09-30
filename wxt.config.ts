@@ -27,6 +27,9 @@ export default defineConfig({
       // line to make the relay unreachable.
       'https://api.huodale.site/*',
     ],
+    // Auto mode reads a page without a click, but only on a site the person has
+    // authorised, one at a time, from the panel. Nothing here is granted at install.
+    optional_host_permissions: ['http://*/*', 'https://*/*'],
     action: {
       default_title: 'AnyFilter',
     },

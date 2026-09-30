@@ -82,7 +82,12 @@ export type RuntimeMessage =
   | { type: 'review-reload' }
   /** Extension page to background: read the page in this tab and judge it once.
    * Only our own pages may ask; the tab is named by the person's click. */
-  | { type: 'judge-page'; tabId: number };
+  | { type: 'judge-page'; tabId: number }
+  /** Extension page to background: the auto mode switch, and its two restarts.
+   * Only one of our own pages may move them. */
+  | { type: 'auto-set-enabled'; enabled: boolean }
+  | { type: 'auto-resume' }
+  | { type: 'auto-reset-spend' };
 
 export type ClassifyError = 'no-key' | 'rate-limited' | 'auth' | 'network' | 'bad-response';
 
@@ -214,6 +219,11 @@ export function isRuntimeMessage(value: unknown): value is RuntimeMessage {
     case 'review-load':
     case 'review-clear':
     case 'review-reload':
+      return true;
+    case 'auto-set-enabled':
+      return typeof record.enabled === 'boolean';
+    case 'auto-resume':
+    case 'auto-reset-spend':
       return true;
     case 'judge-page':
       return typeof record.tabId === 'number' && Number.isInteger(record.tabId) && record.tabId >= 0;

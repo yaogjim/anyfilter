@@ -48,10 +48,31 @@ error page, a page of fewer than 200 words) are refused by the extension itself 
 send nothing. The page text is used for that one request; it is not stored, cached
 or added to any counter. The result the panel shows is "reads like…" with a
 probability, not a statement of fact. X pages are refused too: X is read by the feed
-filter, post by post. Nothing runs in the background and no page is read unless you
-click. To keep the panel in step with the toolbar click, a timestamp of the last click
-is kept in session storage (gone when the browser closes); it contains nothing about
-the page.
+filter, post by post. Unless you turn on auto judging (next paragraph), nothing runs in
+the background and no page is read unless you click. To keep the panel in step with the
+toolbar click, a timestamp of the last click is kept in session storage (gone when the
+browser closes); it contains nothing about the page.
+
+**Auto judging (off by default).** In the side panel's *Auto judging* section you can
+turn on a switch and allow sites one by one. Allowing a site is a Chrome permission
+prompt ("read and change your data on <that site>", requested as an optional host
+permission; nothing is granted at install), and you can remove it in the panel or in
+Chrome's extension settings. While the switch is on, a page on an allowed site that
+finishes loading in the tab in front is read and judged exactly as if you had pressed
+*Judge this page*: **the same text goes to the provider you picked, but without a
+click.** X, the provider hosts and browser pages are never auto-judged. Pages the
+extension refuses locally send nothing. Each tab and address is judged once, and the
+same page content in another tab is answered from a cache instead of asking again.
+There is a local spending cap of USD 10 (counted from Jev's published input price;
+this is not a provider-enforced limit), at most 300 requests a day, requests at least
+two seconds apart, and it stops after three failed requests in a row until you press
+*Resume*. What is kept: in local storage, the switch, the amount counted, today's
+request count and the failure count (no address, no page content); in session storage
+(gone when the browser closes), for each open tab the latest verdict together with the
+page's address without query string or fragment, and a cache of verdicts keyed by a
+SHA-256 hash of the address and the text. No page text is stored anywhere. The toolbar
+icon shows *MKT* or *BAIT* on a tab whose page matched a rule. Closing a tab deletes
+its stored result, and *Clear data* deletes them all.
 
 **Real evaluation (opt-in, off by default).** The side panel's *Real evaluation*
 section can ask three labellers about your saved verification samples: TypeSafe

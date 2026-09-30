@@ -23,6 +23,7 @@ import {
   setCaptureRunState,
 } from '../infrastructure/capture-store';
 import { judgePage } from '../infrastructure/article-judge';
+import { chromeAutoDeps, createAutoRunner } from '../infrastructure/auto-mode';
 import { recordToolbarClick } from '../infrastructure/toolbar-click';
 import { classifyPost } from '../infrastructure/classifier';
 import {
@@ -58,6 +59,8 @@ import type { ReviewSaveResult } from '../domain/review-record';
 import { assertNever } from '../lib/assert-never';
 
 const X_ORIGIN = 'https://x.com/';
+
+const autoRunner = createAutoRunner(chromeAutoDeps());
 
 /** Bumped by `clear-data`. A classification that started before a clear must not
  * write its failure notice into the freshly emptied panel afterwards. */
@@ -106,6 +109,7 @@ async function handle(message: RuntimeMessage, sender: chrome.runtime.MessageSen
     case 'clear-data':
       dataEpoch += 1;
       await forgetScores();
+      await autoRunner.clearResults();
       await updatePanelState(() => EMPTY_PANEL_STATE);
       await clearReviewRecords();
       // Tells every content script to drop its local state, so an in-flight
@@ -290,6 +294,19 @@ async function handle(message: RuntimeMessage, sender: chrome.runtime.MessageSen
       }
       return judgePage(message.tabId);
     }
+    case 'auto-set-enabled':
+    case 'auto-resume':
+    case 'auto-reset-spend': {
+      // Auto mode sends page text out without a click, so only one of our own
+      // pages, acting on the person's click, may switch it on or restart it.
+      const kind = senderKind(sender, chrome.runtime.id);
+      if (kind !== 'extension-page') {
+        console.warn(`[AnyFilter] refused ${message.type} from a ${kind} sender`);
+        return null;
+      }
+      if (message.type === 'auto-set-enabled') return autoRunner.setEnabled(message.enabled);
+      return message.type === 'auto-resume' ? autoRunner.resume() : autoRunner.resetSpend();
+    }
     default:
       return assertNever(message);
   }
@@ -319,6 +336,19 @@ export default defineBackground(() => {
     // An open panel gets no tab event for this click, but its idea of what the
     // tab allows has just changed.
     void recordToolbarClick().catch(() => undefined);
+  });
+
+  // Auto mode. Every one of these only asks the runner to look; the runner decides
+  // from the switch, the site authorisation and the budget, and does nothing at all
+  // while the switch is off.
+  chrome.tabs.onUpdated.addListener((tabId, change) => {
+    if (change.status === 'complete') void autoRunner.consider(tabId).catch(() => undefined);
+  });
+  chrome.tabs.onActivated.addListener(({ tabId }) => {
+    void autoRunner.consider(tabId).catch(() => undefined);
+  });
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    void autoRunner.forgetTab(tabId).catch(() => undefined);
   });
 
   void enablePanel();

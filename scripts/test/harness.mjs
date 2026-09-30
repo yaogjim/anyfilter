@@ -99,6 +99,12 @@ export function installChrome({ local = {}, session = {} } = {}) {
   const sidePanelOptions = [];
   const panelBehaviors = [];
   const sidePanelOpens = [];
+  const tabsById = new Map();
+  const grantedOrigins = new Set();
+  const badges = [];
+  const tabUpdated = makeEvent();
+  const tabActivated = makeEvent();
+  const tabRemoved = makeEvent();
 
   globalThis.chrome = {
     storage: {
@@ -118,9 +124,24 @@ export function installChrome({ local = {}, session = {} } = {}) {
     tabs: {
       query: async () => [],
       sendMessage: async () => undefined,
-      onUpdated: makeEvent(),
+      get: async (id) => {
+        const tab = tabsById.get(id);
+        if (tab === undefined) throw new Error(`No tab with id: ${id}.`);
+        return { id, ...tab };
+      },
+      onUpdated: tabUpdated,
+      onActivated: tabActivated,
+      onRemoved: tabRemoved,
     },
-    action: { onClicked: actionClicked },
+    permissions: {
+      contains: async ({ origins = [] }) => origins.every((origin) => grantedOrigins.has(origin)),
+    },
+    action: {
+      onClicked: actionClicked,
+      setBadgeText: async (details) => void badges.push({ kind: 'text', ...details }),
+      setBadgeBackgroundColor: async (details) => void badges.push({ kind: 'color', ...details }),
+      setTitle: async (details) => void badges.push({ kind: 'title', ...details }),
+    },
     sidePanel: {
       setOptions: async (options) => {
         sidePanelOptions.push(options);
@@ -142,6 +163,19 @@ export function installChrome({ local = {}, session = {} } = {}) {
     sidePanelOptions,
     panelBehaviors,
     sidePanelOpens,
+    /** Tabs, site authorisations and the toolbar badge, for auto mode. */
+    tabs: {
+      set: (id, tab) => tabsById.set(id, { active: true, status: 'complete', ...tab }),
+      remove: (id) => {
+        tabsById.delete(id);
+        tabRemoved.invoke(id);
+      },
+      complete: (id) => tabUpdated.invoke(id, { status: 'complete' }),
+      activate: (id) => tabActivated.invoke({ tabId: id }),
+    },
+    grantOrigin: (pattern) => grantedOrigins.add(pattern),
+    revokeOrigin: (pattern) => grantedOrigins.delete(pattern),
+    badges,
     /** Delivers one runtime message to the registered listeners and resolves with
      * whatever the listener answered. A listener that does not ask to answer
      * asynchronously resolves to `undefined` immediately; a listener that hangs

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ARTICLE_TEXT_CAP_UNITS } from '../../domain/article';
-import type { JudgePageError, JudgedPage } from '../../domain/article-judgement';
+import type { JudgePageError, JudgePageResult, JudgedPage } from '../../domain/article-judgement';
 import {
   ARTICLE_RULES,
   thresholdOf,
@@ -177,6 +177,28 @@ export function PageSection({ gateway }: { gateway: PageGateway }) {
     setPhase({ kind: 'idle' });
   }, [tabId, tabUrl]);
 
+  // The result auto mode made for this page, if any. A manual judgement shown
+  // below takes its place.
+  const [auto, setAuto] = useState<JudgePageResult | null>(null);
+  useEffect(() => {
+    let live = true;
+    const refresh = (): void => {
+      if (tabId === null || tabUrl === null) {
+        setAuto(null);
+        return;
+      }
+      void gateway.loadAutoResult(tabId, tabUrl).then((result) => {
+        if (live) setAuto(result);
+      });
+    };
+    refresh();
+    const stop = gateway.onAutoResultsChanged(refresh);
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [gateway, tabId, tabUrl]);
+
   const judge = (): void => {
     if (tabId === null) {
       setPhase({ kind: 'error', error: 'no-access', detail: '' });
@@ -218,6 +240,19 @@ export function PageSection({ gateway }: { gateway: PageGateway }) {
         <p role="alert" data-anyfilter-page-error={phase.error} className="mb-0 mt-3 text-xs text-hide">
           {errorText(phase.error, phase.detail, t)}
         </p>
+      )}
+      {phase.kind === 'idle' && auto !== null && auto.ok && (
+        <div className="mt-3 border-t border-line pt-3" data-anyfilter-page-auto="result">
+          <p className="mb-1 mt-0 text-[11px] text-ink-2">{t('page.autoResult')}</p>
+          <p className="mb-2 mt-0 truncate text-xs text-ink-2" title={auto.page.url}>
+            {t('page.judgedPage', {
+              title: auto.page.title === '' ? t('page.untitled') : auto.page.title,
+              units: auto.page.units,
+            })}
+          </p>
+          <Verdict verdict={auto.verdict} />
+          <p className="mb-0 mt-3 text-[11px] text-ink-2">{t('page.disclaimer')}</p>
+        </div>
       )}
       {phase.kind === 'done' && (
         <div className="mt-3 border-t border-line pt-3">

@@ -2,6 +2,8 @@ import '../../assets/globals.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BackgroundClient } from '../../infrastructure/background-client';
+import { loadAutoResultFor, loadAutoState, onAutoResultsChanged, onAutoStateChanged } from '../../infrastructure/auto-store';
+import { listAuthorisedSites, onAuthorisedSitesChanged, removeSite, requestSite } from '../../infrastructure/auto-sites';
 import { loadCaptureState, onCaptureStateChanged } from '../../infrastructure/capture-store';
 import {
   loadVerificationCandidates,
@@ -45,6 +47,17 @@ const gateway: PanelGateway & PageGateway = {
   loadActiveTab,
   onActiveTabChanged,
   judgePage: (tabId) => client.judgePage(tabId),
+  loadAutoState,
+  onAutoStateChanged,
+  setAutoEnabled: (enabled) => client.setAutoEnabled(enabled),
+  resumeAuto: () => client.resumeAuto(),
+  resetAutoSpend: () => client.resetAutoSpend(),
+  loadAutoResult: loadAutoResultFor,
+  onAutoResultsChanged,
+  listAuthorisedSites,
+  onAuthorisedSitesChanged,
+  requestSite,
+  removeSite,
   loadSettings,
   saveSettings,
   onSettingsChanged,

@@ -5,6 +5,7 @@ import { CaptureSection } from './CaptureSection';
 import { Header, type PanelView } from './Header';
 import { EvaluationSection } from './EvaluationSection';
 import { HiddenGroups } from './HiddenGroups';
+import { AutoSection } from './AutoSection';
 import { PageSection } from './PageSection';
 import type { PageGateway, PanelGateway } from './PanelGateway';
 import { ReviewDataSection } from './ReviewDataSection';
@@ -67,7 +68,12 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
           onToggle={(filterOn) => updateSettings({ filterOn })}
         />
       </div>
-      {view === 'page' && <PageSection gateway={gateway} />}
+      {view === 'page' && (
+        <>
+          <PageSection gateway={gateway} />
+          <AutoSection gateway={gateway} />
+        </>
+      )}
       {view === 'home' && (
         <>
           <section className="rounded-xl border border-line bg-white p-3.5" aria-label={t('shell.overview')}>
