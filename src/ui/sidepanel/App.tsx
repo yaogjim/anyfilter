@@ -1,25 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Settings } from '../../domain/settings';
 import { useLanguage } from '../language';
-import { CaptureSection } from './CaptureSection';
 import { Header, type PanelView } from './Header';
-import { EvaluationSection } from './EvaluationSection';
 import { HiddenGroups } from './HiddenGroups';
 import { AutoSection } from './AutoSection';
 import { PageSection } from './PageSection';
 import type { PageGateway, PanelGateway } from './PanelGateway';
-import { ReviewDataSection } from './ReviewDataSection';
 import { ReviewSwitch } from './ReviewSwitch';
 import { SettingsSection } from './SettingsSection';
 import { SitesSection } from './SitesSection';
+import { StatusBanner } from './StatusBanner';
 import { Tiles } from './Tiles';
 import { useSubscribedValue } from './use-subscribed-value';
-import { VerificationSection } from './VerificationSection';
+import { VerificationView } from './VerificationView';
 
 export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
   const { t } = useLanguage();
   const [view, setView] = useState<PanelView>('home');
   const [settingsVisited, setSettingsVisited] = useState(false);
+  // A section of the settings view to scroll to once it is on screen.
+  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
   // Which view to open on: X keeps its overview, any other page opens on "this
   // page". Decided once, and only if the person has not already picked a view.
   const chosen = useRef(false);
@@ -39,6 +39,11 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
       active = false;
     };
   }, [gateway]);
+  useEffect(() => {
+    if (view !== 'settings' || pendingAnchor === null) return;
+    document.getElementById(pendingAnchor)?.scrollIntoView({ block: 'start' });
+    setPendingAnchor(null);
+  }, [view, pendingAnchor, settingsVisited]);
   const settings = useSubscribedValue(gateway.loadSettings, gateway.onSettingsChanged);
   const panel = useSubscribedValue(gateway.loadPanelState, gateway.onPanelStateChanged);
 
@@ -58,6 +63,10 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
     if (next === 'settings') setSettingsVisited(true);
     setView(next);
   };
+  const openSettings = (anchor: string): void => {
+    navigate('settings');
+    setPendingAnchor(anchor);
+  };
   const labelOrder = current.rules.map((rule) => rule.label);
 
   return (
@@ -72,6 +81,11 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
           onToggle={(filterOn) => updateSettings({ filterOn })}
         />
       </div>
+      {/* A missing key or a failing provider is said on every view but Settings,
+          where the key field is already on screen. */}
+      {view !== 'settings' && (
+        <StatusBanner settings={current} state={state} onConfigure={() => openSettings('models')} />
+      )}
       {view === 'page' && (
         <>
           <PageSection gateway={gateway} />
@@ -86,7 +100,13 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
             <Tiles state={state} />
           </section>
           <ReviewSwitch scope="home" on={current.reviewMode} onChange={(reviewMode) => updateSettings({ reviewMode })} />
-          <HiddenGroups state={state} labelOrder={labelOrder} onOverride={gateway.override} />
+          <HiddenGroups
+            state={state}
+            labelOrder={labelOrder}
+            rules={current.rules}
+            groups={current.ruleGroups}
+            onOverride={gateway.override}
+          />
         </>
       )}
       {settingsVisited && (
@@ -102,6 +122,7 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
             </button>
           </div>
           <SettingsSection
+            gateway={gateway}
             settings={current}
             onChange={updateSettings}
             onClearData={gateway.clearData}
@@ -112,14 +133,7 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
         </div>
       )}
       {view === 'verification' && (
-        <>
-          <div className="rounded-xl border border-line bg-white p-3.5">
-            <CaptureSection gateway={gateway} />
-          </div>
-          <ReviewDataSection gateway={gateway} />
-          <EvaluationSection gateway={gateway} />
-          <VerificationSection gateway={gateway} settings={current} />
-        </>
+        <VerificationView gateway={gateway} settings={current} onOpenSettings={openSettings} />
       )}
     </main>
   );
