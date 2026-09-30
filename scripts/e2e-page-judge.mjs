@@ -234,8 +234,22 @@ try {
   check(String(first?.body.state.text).includes('essay10'), 'the page body reached the model');
   check(first?.body.state.truncated === false, 'a short page is not marked truncated');
   check((await panel.eval(`document.querySelector('[data-anyfilter-page-verdict]').dataset.anyfilterPageVerdict`)) === 'clean', 'a clean essay shows "no rule matched"');
-  const domAfter = await page.evaluate(() => ({ length: document.documentElement.outerHTML.length, scripts: document.scripts.length, ran: window.__pageScriptRan === true }));
-  check(domAfter.length === domBefore.length && domAfter.scripts === domBefore.scripts && domAfter.ran, 'reading the page does not change it (same HTML length, scripts kept, page script state kept)');
+  // Review mode (on by default) draws one box of ours; reading the page changes nothing else.
+  const boxText = () => page.evaluate(() => document.getElementById('anyfilter-page-review')?.shadowRoot?.textContent ?? null);
+  const boxAppeared = await (async () => {
+    for (let i = 0; i < 40; i += 1) {
+      if ((await boxText()) !== null) return true;
+      await sleep(150);
+    }
+    return false;
+  })();
+  check(boxAppeared, 'review mode draws a box on the judged page');
+  check(/No rule matched/.test((await boxText()) ?? '') && /Review mode/.test((await boxText()) ?? ''), 'a clean essay says no rule matched, and the box says it is review mode');
+  const domAfter = await page.evaluate(() => {
+    document.getElementById('anyfilter-page-review')?.remove();
+    return { length: document.documentElement.outerHTML.length, scripts: document.scripts.length, ran: window.__pageScriptRan === true };
+  });
+  check(domAfter.length === domBefore.length && domAfter.scripts === domBefore.scripts && domAfter.ran, 'reading the page does not change it (same HTML length, scripts kept, page script state kept), apart from the review box');
 
   // --- a promo page: matches marketing at its own threshold (0.45 < 0.7) --------
   await page.goto(`${ORIGIN}/blog/promo-launch`);
@@ -248,6 +262,19 @@ try {
   check(await waitForPanel(`document.querySelector('[data-anyfilter-page-verdict]')?.dataset.anyfilterPageVerdict === 'match'`, 'match'), 'marketing at 45% matches its 40% threshold (would miss at the 70% default)');
   const shown = await panel.eval(`document.querySelector('[data-anyfilter-page-verdict]').innerText`);
   check(/45%/.test(shown) && /40%/.test(shown), 'the badge shows the probability and the threshold');
+  check(
+    await (async () => {
+      for (let i = 0; i < 40; i += 1) {
+        const text = await page.evaluate(() => document.getElementById('anyfilter-page-review')?.shadowRoot?.textContent ?? '');
+        if (/marketing/.test(text) && /45%/.test(text) && /40%/.test(text)) return true;
+        await sleep(150);
+      }
+      return false;
+    })(),
+    'the review box on the promo page gives the rule, its probability and its threshold',
+  );
+  await page.evaluate(() => document.getElementById('anyfilter-page-review').shadowRoot.querySelector('button').click());
+  check(await page.evaluate(() => document.getElementById('anyfilter-page-review') === null), 'the box can be closed');
 
   // --- a long page: truncated; the title-style rules still answer -------------------
   await page.goto(`${ORIGIN}/blog/very-long`);

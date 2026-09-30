@@ -97,7 +97,7 @@ console.log(`extension ${extensionId} loaded`);
 
 await worker.evaluate(() =>
   chrome.storage.local.set({
-    'anyfilter.settings': { provider: 'typesafe', keys: { typesafe: 'fixture-key', vercel: '' } },
+    'anyfilter.settings': { provider: 'typesafe', keys: { typesafe: 'fixture-key', vercel: '' }, reviewMode: false },
   }),
 );
 
@@ -125,6 +125,7 @@ const visibleTitleRows = (page) =>
   page.evaluate(() => [...document.querySelectorAll('tr.athing.submission')].filter((row) => getComputedStyle(row).display !== 'none').length);
 
 const hn = await context.newPage();
+hn.on('pageerror', (e) => console.log('PAGEERROR', e.message));
 await hn.goto('https://news.ycombinator.com/news');
 check(
   await waitFor(async () => (await rowState(hn, POLITICAL_ID))?.title === true, 'political row hidden'),
@@ -171,6 +172,7 @@ check(
 check((await panel.locator('[data-anyfilter-site="hn"]').getAttribute('data-anyfilter-site-on')) === 'true', 'and shows it as on, because the browser grants it');
 check((await panel.locator('[data-anyfilter-sites="toggle"]').getAttribute('aria-pressed')) === 'true', 'the switch agrees');
 await panel.locator('[data-anyfilter-nav="home"]').click();
+await panel.locator('[data-anyfilter-nav="home"]').click();
 
 check(
   await waitFor(async () => (await panel.getByText('America.gov (america.gov)').count()) === 0 && (await panel.getByText(/Politics/i).count()) > 0, 'politics group'),
@@ -211,6 +213,55 @@ check(
   await waitFor(async () => (await rowState(hn, POLITICAL_ID))?.title === false && (await visibleTitleRows(hn)) === 30, 'filter off'),
   'switching filtering off in settings shows everything again on the open page',
 );
+
+// --- review mode: rows stay, with a box saying what would happen --------------------------------
+const setSettings = (patch) =>
+  worker.evaluate(async (change) => {
+    const key = 'anyfilter.settings';
+    const current = (await chrome.storage.local.get(key))[key];
+    await chrome.storage.local.set({ [key]: { ...current, ...change } });
+  }, patch);
+const reviewOf = (page, id) =>
+  page.evaluate((itemId) => {
+    const row = document.getElementById(itemId);
+    const subtext = row?.nextElementSibling;
+    const line = subtext?.nextElementSibling;
+    const isLine = line?.classList.contains('anyfilter-hn-review-line') ?? false;
+    return {
+      state: row?.getAttribute('data-anyfilter-review') ?? null,
+      shown: row ? getComputedStyle(row).display !== 'none' : false,
+      line: isLine,
+      text: isLine ? (line.querySelector('div')?.shadowRoot?.textContent ?? '') : '',
+      spacerAfter: isLine ? (line.nextElementSibling?.classList.contains('spacer') ?? false) : false,
+    };
+  }, id);
+
+await setSettings({ filterOn: true });
+check(await waitFor(async () => (await rowState(hn, POLITICAL_ID))?.title === true, 'hidden with filter on'), 'filtering on again hides the political row');
+await setSettings({ reviewMode: true });
+check(
+  await waitFor(async () => (await reviewOf(hn, POLITICAL_ID)).line, 'review line'),
+  'review mode draws a box under the political row',
+);
+const flagged = await reviewOf(hn, POLITICAL_ID);
+check(flagged.shown && flagged.state === 'flagged', 'the row stays on the page and is marked as one that would be hidden');
+check(/Politics/i.test(flagged.text) && /96%/.test(flagged.text) && /threshold/i.test(flagged.text), 'and the box gives the rule, its score and the threshold');
+check(flagged.spacerAfter, 'the box sits before the gap row');
+const kept = await reviewOf(hn, '49893510');
+check(kept.state === 'kept' || kept.state === null, 'other rows are marked as kept (or not judged yet)');
+check((await visibleTitleRows(hn)) === 30, 'nothing is hidden while reviewing');
+check((await hn.locator('[data-anyfilter-host="hn-review-bar"]').count()) === 1, 'a review bar is on the page');
+if (process.env.SHOT) await hn.screenshot({ path: process.env.SHOT });
+await hn.evaluate(() => document.querySelector('[data-anyfilter-host="hn-review-bar"]').shadowRoot.querySelector('button').click());
+check(
+  await waitFor(async () => (await rowState(hn, POLITICAL_ID))?.title === true && !(await reviewOf(hn, POLITICAL_ID)).line, 'exit review'),
+  'Exit on the bar turns review mode off: the box is gone and the political row is hidden again',
+);
+check(
+  (await worker.evaluate(async () => (await chrome.storage.local.get('anyfilter.settings'))['anyfilter.settings'].reviewMode)) === false,
+  'the stored review switch is off, so the panel and other pages agree',
+);
+check((await hn.locator('[data-anyfilter-host="hn-review-bar"]').count()) === 0, 'and the bar is gone');
 
 await context.close();
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);

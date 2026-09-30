@@ -24,8 +24,8 @@ export const reviewZh: Record<keyof typeof reviewEn, string> = {
 
   'review.panel.heading': '复核模式',
   'review.panel.descriptionOn':
-    '对所有 X 页面生效：帖子保持可见，并按 AnyFilter 的判断加上边框，不会隐藏任何内容。关闭后才会真正隐藏。',
-  'review.panel.descriptionOff': '已关闭：AnyFilter 会按规则隐藏帖子。开启后对所有 X 页面生效，帖子保持可见并加上边框。',
+    '对 X 和已打开的其他网站（如 Hacker News）生效：帖子保持可见，并按 AnyFilter 的判断加上边框，不会隐藏任何内容。关闭后才会真正隐藏。',
+  'review.panel.descriptionOff': '已关闭：AnyFilter 会按规则隐藏帖子。开启后对 X 和已打开的其他网站生效，帖子保持可见并加上边框。',
   'review.panel.turnOn': '开启复核模式',
   'review.panel.turnOff': '关闭复核模式',
   'review.label.labeled': '已标注',

@@ -27,9 +27,9 @@ export const reviewEn = {
 
   'review.panel.heading': 'Review mode',
   'review.panel.descriptionOn':
-    'Applies to every X page: posts stay visible and are outlined by what AnyFilter would do. Nothing is hidden until you turn it off.',
+    'Applies to X and to the other sites you turned on (such as Hacker News): posts stay visible and are outlined by what AnyFilter would do. Nothing is hidden until you turn it off.',
   'review.panel.descriptionOff':
-    'Off: AnyFilter hides posts by your rules. Turn it on to keep posts visible and outlined on every X page.',
+    'Off: AnyFilter hides posts by your rules. Turn it on to keep posts visible and outlined on X and on the other sites you turned on.',
   'review.panel.turnOn': 'Turn on review mode',
   'review.panel.turnOff': 'Turn off review mode',
   'review.label.labeled': 'Labeled',

@@ -24,6 +24,7 @@ import {
 } from '../infrastructure/capture-store';
 import { HN_PATTERN } from '../domain/hn';
 import { judgePage } from '../infrastructure/article-judge';
+import { showPageReview } from '../infrastructure/page-review';
 import { chromeAutoDeps, createAutoRunner } from '../infrastructure/auto-mode';
 import { chromeSiteScriptDeps, createSiteScripts } from '../infrastructure/site-scripts';
 import { recordToolbarClick } from '../infrastructure/toolbar-click';
@@ -297,7 +298,9 @@ async function handle(message: RuntimeMessage, sender: chrome.runtime.MessageSen
         console.warn(`[AnyFilter] refused judge-page from a ${kind} sender`);
         return { ok: false, error: 'no-access', detail: 'refused' } satisfies JudgePageResult;
       }
-      return judgePage(message.tabId);
+      const judged = await judgePage(message.tabId);
+      if (judged.ok) void showPageReview(message.tabId, judged.verdict);
+      return judged;
     }
     case 'auto-set-enabled':
     case 'auto-resume':

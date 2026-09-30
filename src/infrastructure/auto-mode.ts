@@ -35,6 +35,7 @@ import {
   type AutoResults,
 } from './auto-store';
 import { classifyText, type TextOutcome } from './classifier';
+import { showPageReview } from './page-review';
 import { loadUiLocale } from './ui-locale';
 
 /**
@@ -135,7 +136,10 @@ export function chromeAutoDeps(): AutoDeps {
     extract: extractFromTab,
     classify: classifyText,
     hash: sha256,
-    showBadge: (tabId, verdict) => void showBadge(tabId, verdict),
+    showBadge: (tabId, verdict) => {
+      void showBadge(tabId, verdict);
+      void showPageReview(tabId, verdict);
+    },
     clearBadge: (tabId) => void clearBadge(tabId),
   };
 }

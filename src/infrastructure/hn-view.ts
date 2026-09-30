@@ -10,6 +10,7 @@ import {
 import type { Post } from '../domain/post';
 import type { ReviewSnapshot } from '../domain/review';
 import { hashString } from '../domain/rule';
+import { HN_REVIEW_CSS, HN_REVIEW_LINE_CLASS, HnReviewLayer } from './hn-review';
 import type { TimelineView } from '../domain/timeline-view';
 
 const PROCESSED_ATTRIBUTE = 'data-anyfilter';
@@ -32,8 +33,13 @@ function rowsOf(row: Element): Element[] {
   const subtext = subtextRowOf(row);
   if (subtext === null) return rows;
   rows.push(subtext);
-  const spacer = subtext.nextElementSibling;
-  if (spacer !== null && spacer.classList.contains('spacer')) rows.push(spacer);
+  let next = subtext.nextElementSibling;
+  // The review line, when there is one, sits between the score line and the gap.
+  if (next !== null && next.classList.contains(HN_REVIEW_LINE_CLASS)) {
+    rows.push(next);
+    next = next.nextElementSibling;
+  }
+  if (next !== null && next.classList.contains('spacer')) rows.push(next);
   return rows;
 }
 
@@ -54,6 +60,8 @@ export function readHnRow(row: Element): HnItem | null {
  * found and how it is hidden.
  */
 export class HnView implements TimelineView {
+  readonly review = new HnReviewLayer();
+
   constructor() {
     this.installStyles();
   }
@@ -113,10 +121,15 @@ export class HnView implements TimelineView {
     for (const part of rowsOf(row)) part.classList.remove(HIDDEN_CLASS);
   }
 
-  // Review mode belongs to X. Nothing is drawn on a Hacker News row.
-  decorate(_postId: string, _snapshot: ReviewSnapshot): void {}
+  decorate(postId: string, snapshot: ReviewSnapshot): void {
+    const row = this.rowOf(postId);
+    if (row !== null) this.review.render(row, snapshot, subtextRowOf(row));
+  }
 
-  clearDecoration(_postId: string): void {}
+  clearDecoration(postId: string): void {
+    const row = this.rowOf(postId);
+    if (row !== null) this.review.clear(row);
+  }
 
   private rowOf(postId: string): Element | null {
     if (!isHnPostId(postId)) return null;
@@ -128,7 +141,7 @@ export class HnView implements TimelineView {
     if (document.getElementById(STYLE_ID) !== null) return;
     const style = document.createElement('style');
     style.id = STYLE_ID;
-    style.textContent = `.${HIDDEN_CLASS} { display: none !important; }`;
+    style.textContent = `.${HIDDEN_CLASS} { display: none !important; }\n${HN_REVIEW_CSS}`;
     (document.head ?? document.documentElement).append(style);
   }
 }
