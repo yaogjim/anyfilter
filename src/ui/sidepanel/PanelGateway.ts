@@ -52,6 +52,8 @@ export interface PageGateway {
   onAuthorisedSitesChanged(listener: () => void): () => void;
   requestSite(pattern: string): Promise<boolean>;
   removeSite(pattern: string): Promise<boolean>;
+  /** Which feed sites (Hacker News) are turned on; the same grant as the script's registration. */
+  enabledFeedSiteIds(): Promise<string[]>;
 }
 
 export interface PanelGateway {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { HiddenEntry } from '../../domain/panel-state';
-import { postUrl } from '../../domain/post';
+import { postSource, postUrl } from '../../domain/post';
 import { reasonText, type Reason } from '../../domain/verdict';
 import { useLanguage } from '../language';
 import { Avatar } from './Avatar';
@@ -46,7 +46,7 @@ export function HiddenRow({
             {entry.shown ? t('shell.hidden.hideAgain') : t('shell.hidden.putBack')}
           </button>
           <a className={ACTION_CLASS} href={postUrl(post)} target="_blank" rel="noreferrer">
-            {t('shell.hidden.openOnX')}
+            {postSource(post) === 'hn' ? t('shell.hidden.openOnHn') : t('shell.hidden.openOnX')}
           </a>
           <span>{entry.reasons.map(reasonText).join(' · ')}</span>
         </PostCard>

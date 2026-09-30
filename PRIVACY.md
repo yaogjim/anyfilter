@@ -74,6 +74,8 @@ SHA-256 hash of the address and the text. No page text is stored anywhere. The t
 icon shows *MKT* or *BAIT* on a tab whose page matched a rule. Closing a tab deletes
 its stored result, and *Clear data* deletes them all.
 
+**Hacker News (off by default).** In the side panel's *Other sites* card you can turn on Hacker News. That is a Chrome permission prompt for `news.ycombinator.com` (an optional host permission; nothing is granted at install); turning it off gives the access back. While it is on, on Hacker News list pages (front page, newest, ask, show and similar; never an item page or comments) each story title is read and judged against your politics, crypto, NSFW and platitude rules and your own rules. **Sent to the provider you picked: the submitter's username, the title, and the host its link points to. Nothing else: no page text, comments, points or time.** Matching titles are hidden on the page. The panel's hidden list keeps the title, username and link to the discussion, like it does for X posts, and *Clear everything* removes it. The score cache (session storage, gone when the browser closes) holds the story's id, a hash of its title and the scores, not the title itself.
+
 **Real evaluation (opt-in, off by default).** The side panel's *Real evaluation*
 section can ask three labellers about your saved verification samples: TypeSafe
 Jev 1.13, OpenAI `gpt-6-luna` and DeepSeek `deepseek-flash`. It runs only after you

@@ -22,7 +22,7 @@ const PAGE = 'https://blog.example.com/post/1';
 const handle = installChrome({
   local: { 'anyfilter.settings': { provider: 'typesafe', keys: { typesafe: 'sk_secret_value', vercel: '' } } },
 });
-globalThis.chrome.scripting = {
+Object.assign(globalThis.chrome.scripting, {
   executeScript: async () => [
     {
       result: {
@@ -34,7 +34,7 @@ globalThis.chrome.scripting = {
       },
     },
   ],
-};
+});
 const calls = installFetch(() =>
   jsonResponse(typesafeAnswers({ readable: 0.95, marketing: 0.9, clickbait: 0.05 }, { inputTokens: 3000 })),
 );

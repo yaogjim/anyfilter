@@ -22,8 +22,10 @@ import {
   recordObservations,
   setCaptureRunState,
 } from '../infrastructure/capture-store';
+import { HN_PATTERN } from '../domain/hn';
 import { judgePage } from '../infrastructure/article-judge';
 import { chromeAutoDeps, createAutoRunner } from '../infrastructure/auto-mode';
+import { chromeSiteScriptDeps, createSiteScripts } from '../infrastructure/site-scripts';
 import { recordToolbarClick } from '../infrastructure/toolbar-click';
 import { classifyPost } from '../infrastructure/classifier';
 import {
@@ -61,6 +63,7 @@ import { assertNever } from '../lib/assert-never';
 const X_ORIGIN = 'https://x.com/';
 
 const autoRunner = createAutoRunner(chromeAutoDeps());
+const siteScripts = createSiteScripts(chromeSiteScriptDeps());
 
 /** Bumped by `clear-data`. A classification that started before a clear must not
  * write its failure notice into the freshly emptied panel afterwards. */
@@ -73,8 +76,10 @@ function refuseControl(what: string, kind: string): Promise<CaptureState> {
   return loadCaptureState();
 }
 
+/** Every page that runs one of our feed scripts: X, and Hacker News where the person
+ * turned it on. Without that site's permission the query simply does not see its tabs. */
 async function broadcastToX(message: RuntimeMessage): Promise<void> {
-  const tabs = await chrome.tabs.query({ url: `${X_ORIGIN}*` });
+  const tabs = await chrome.tabs.query({ url: [`${X_ORIGIN}*`, HN_PATTERN] });
   await Promise.all(
     tabs.map((tab) =>
       tab.id === undefined ? undefined : chrome.tabs.sendMessage(tab.id, message).catch(() => undefined),
@@ -350,6 +355,13 @@ export default defineBackground(() => {
   chrome.tabs.onRemoved.addListener((tabId) => {
     void autoRunner.forgetTab(tabId).catch(() => undefined);
   });
+
+  // Other sites' scripts follow the browser's grant: register what is granted,
+  // drop what is not. At every start too, since an update drops runtime registrations.
+  void siteScripts.sync();
+  chrome.runtime.onInstalled.addListener(() => void siteScripts.sync(true));
+  chrome.permissions.onAdded.addListener(() => void siteScripts.sync());
+  chrome.permissions.onRemoved.addListener(() => void siteScripts.sync());
 
   void enablePanel();
   void pruneExpiredCaptureSamples();

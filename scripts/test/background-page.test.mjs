@@ -46,13 +46,13 @@ async function setup({ settings, page } = {}) {
     local: { [SETTINGS_KEY]: settings ?? { provider: 'typesafe', keys: { typesafe: 'sk_secret_value', vercel: '' } } },
   });
   const injected = [];
-  globalThis.chrome.scripting = {
+  Object.assign(globalThis.chrome.scripting, {
     executeScript: async (injection) => {
       injected.push(injection);
       if (page instanceof Error) throw page;
       return [{ result: page ?? extraction() }];
     },
-  };
+  });
   const calls = installFetch(() =>
     jsonResponse(typesafeAnswers({ readable: 0.95, marketing: 0.9, clickbait: 0.05 }, { inputTokens: 3300 })),
   );

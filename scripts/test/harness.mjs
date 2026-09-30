@@ -105,6 +105,10 @@ export function installChrome({ local = {}, session = {} } = {}) {
   const tabUpdated = makeEvent();
   const tabActivated = makeEvent();
   const tabRemoved = makeEvent();
+  const permissionsAdded = makeEvent();
+  const permissionsRemoved = makeEvent();
+  const registeredScripts = new Map();
+  const injections = [];
 
   globalThis.chrome = {
     storage: {
@@ -135,6 +139,29 @@ export function installChrome({ local = {}, session = {} } = {}) {
     },
     permissions: {
       contains: async ({ origins = [] }) => origins.every((origin) => grantedOrigins.has(origin)),
+      onAdded: permissionsAdded,
+      onRemoved: permissionsRemoved,
+    },
+    // Runtime-registered content scripts, for the sites other than X.
+    scripting: {
+      getRegisteredContentScripts: async ({ ids } = {}) =>
+        [...registeredScripts.values()].filter((script) => ids === undefined || ids.includes(script.id)),
+      registerContentScripts: async (scripts) => {
+        for (const script of scripts) {
+          if (registeredScripts.has(script.id)) throw new Error(`Duplicate script ID '${script.id}'`);
+          registeredScripts.set(script.id, structuredClone(script));
+        }
+      },
+      unregisterContentScripts: async ({ ids } = {}) => {
+        for (const id of ids ?? []) {
+          if (!registeredScripts.has(id)) throw new Error(`Nonexistent script ID '${id}'`);
+          registeredScripts.delete(id);
+        }
+      },
+      executeScript: async (details) => {
+        injections.push(structuredClone(details));
+        return [];
+      },
     },
     action: {
       onClicked: actionClicked,
@@ -173,8 +200,20 @@ export function installChrome({ local = {}, session = {} } = {}) {
       complete: (id) => tabUpdated.invoke(id, { status: 'complete' }),
       activate: (id) => tabActivated.invoke({ tabId: id }),
     },
-    grantOrigin: (pattern) => grantedOrigins.add(pattern),
-    revokeOrigin: (pattern) => grantedOrigins.delete(pattern),
+    grantOrigin: (pattern) => {
+      grantedOrigins.add(pattern);
+      permissionsAdded.invoke({ origins: [pattern] });
+    },
+    revokeOrigin: (pattern) => {
+      grantedOrigins.delete(pattern);
+      permissionsRemoved.invoke({ origins: [pattern] });
+    },
+    /** Scripts registered at runtime, and the tabs a script was put into by hand. */
+    registeredScripts: () => [...registeredScripts.values()],
+    injections,
+    setOpenTabs: (tabs) => {
+      globalThis.chrome.tabs.query = async () => tabs;
+    },
     badges,
     /** Delivers one runtime message to the registered listeners and resolves with
      * whatever the listener answered. A listener that does not ask to answer

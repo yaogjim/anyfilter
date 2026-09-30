@@ -12,7 +12,7 @@ import {
 import type { ClassifierPort } from '../domain/classifier-port';
 import { isValidScore } from '../domain/evaluation';
 import type { ClassifyError } from '../domain/messages';
-import { postContentKey, samePostContent, type Post } from '../domain/post';
+import { postContentKey, postSource, samePostContent, type Post } from '../domain/post';
 import { buildReviewSnapshot, type ReviewJudgement } from '../domain/review';
 import type { Rule } from '../domain/rule';
 import {
@@ -232,7 +232,10 @@ export class FeedFilter {
 
   private report(post: Post, reasons: Reason[], tokens: number): void {
     this.sink.report(post, reasons, tokens);
-    if (reasons.length > 0 && post.avatarUrl === '') this.awaitingAvatar.add(post.id);
+    // Only X posts have an avatar to wait for.
+    if (reasons.length > 0 && post.avatarUrl === '' && postSource(post) === 'x') {
+      this.awaitingAvatar.add(post.id);
+    }
   }
 
   private async evaluate(post: Post): Promise<void> {

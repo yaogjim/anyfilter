@@ -15,9 +15,11 @@ import { pageEn } from '../../src/ui/locales/page.en.ts';
 import { pageZh } from '../../src/ui/locales/page.zh-CN.ts';
 import { reviewEn } from '../../src/ui/locales/review.en.ts';
 import { reviewZh } from '../../src/ui/locales/review.zh-CN.ts';
+import { sitesEn } from '../../src/ui/locales/sites.en.ts';
+import { sitesZh } from '../../src/ui/locales/sites.zh-CN.ts';
 
-const en = { ...settingsEn, ...verificationEn, ...shellEn, ...reviewEn, ...evaluationEn, ...pageEn };
-const zh = { ...settingsZh, ...verificationZh, ...shellZh, ...reviewZh, ...evaluationZh, ...pageZh };
+const en = { ...settingsEn, ...verificationEn, ...shellEn, ...reviewEn, ...evaluationEn, ...pageEn, ...sitesEn };
+const zh = { ...settingsZh, ...verificationZh, ...shellZh, ...reviewZh, ...evaluationZh, ...pageZh, ...sitesZh };
 const placeholders = (text) => [...text.matchAll(/\{([a-zA-Z][a-zA-Z0-9]*)\}/g)].map((match) => match[1]).sort();
 
 // Resource parity protects against a key or interpolated value disappearing in
@@ -37,7 +39,7 @@ const files = [
   'ui/sidepanel/PostCard.tsx', 'ui/sidepanel/SettingsSection.tsx',
   'ui/sidepanel/RuleManager.tsx', 'ui/sidepanel/RuleEditor.tsx',
   'ui/sidepanel/RulePreview.tsx', 'ui/sidepanel/VerificationSection.tsx',
-  'ui/sidepanel/CaptureSection.tsx', 'ui/sidepanel/ReviewSwitch.tsx', 'ui/sidepanel/ReviewDataSection.tsx', 'ui/sidepanel/EvaluationSection.tsx', 'ui/sidepanel/PageSection.tsx',
+  'ui/sidepanel/CaptureSection.tsx', 'ui/sidepanel/ReviewSwitch.tsx', 'ui/sidepanel/ReviewDataSection.tsx', 'ui/sidepanel/EvaluationSection.tsx', 'ui/sidepanel/PageSection.tsx', 'ui/sidepanel/SitesSection.tsx',
   'infrastructure/review-panel.ts',
   'infrastructure/review-layer.ts', 'infrastructure/review-toolbar.ts', 'entrypoints/options/main.tsx',
 ];

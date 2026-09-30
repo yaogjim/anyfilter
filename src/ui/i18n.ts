@@ -17,11 +17,13 @@ import { reviewZh } from './locales/review.zh-CN';
 import { settingsEn } from './locales/settings.en';
 import { settingsZh } from './locales/settings.zh-CN';
 import { shellEn } from './locales/shell.en';
+import { sitesEn } from './locales/sites.en';
+import { sitesZh } from './locales/sites.zh-CN';
 import { shellZh } from './locales/shell.zh-CN';
 import { verificationEn } from './locales/verification.en';
 import { verificationZh } from './locales/verification.zh-CN';
 
-const en = { ...settingsEn, ...verificationEn, ...shellEn, ...reviewEn, ...evaluationEn, ...pageEn };
+const en = { ...settingsEn, ...verificationEn, ...shellEn, ...reviewEn, ...evaluationEn, ...pageEn, ...sitesEn };
 export type TranslationKey = keyof typeof en;
 const zh: Record<TranslationKey, string> = {
   ...settingsZh,
@@ -30,6 +32,7 @@ const zh: Record<TranslationKey, string> = {
   ...reviewZh,
   ...evaluationZh,
   ...pageZh,
+  ...sitesZh,
 };
 
 export type UiLocale = 'en' | 'zh-CN';

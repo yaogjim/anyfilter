@@ -20,7 +20,8 @@
     "rule:apply": "node scripts/apply-rule-pack.mjs",
     "e2e": "node scripts/e2e-offline.mjs",
     "e2e:page": "node scripts/e2e-page-judge.mjs",
-    "e2e:auto": "node scripts/e2e-auto-mode.mjs"
+    "e2e:auto": "node scripts/e2e-auto-mode.mjs",
+    "e2e:hn": "node scripts/e2e-hn.mjs"
   },
   "dependencies": {
     "defuddle": "0.19.4",

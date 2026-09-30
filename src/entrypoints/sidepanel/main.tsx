@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BackgroundClient } from '../../infrastructure/background-client';
 import { loadAutoResultFor, loadAutoState, onAutoResultsChanged, onAutoStateChanged } from '../../infrastructure/auto-store';
-import { listAuthorisedSites, onAuthorisedSitesChanged, removeSite, requestSite } from '../../infrastructure/auto-sites';
+import { enabledFeedSiteIds, listAuthorisedSites, onAuthorisedSitesChanged, removeSite, requestSite } from '../../infrastructure/auto-sites';
 import { loadCaptureState, onCaptureStateChanged } from '../../infrastructure/capture-store';
 import {
   loadVerificationCandidates,
@@ -58,6 +58,7 @@ const gateway: PanelGateway & PageGateway = {
   onAuthorisedSitesChanged,
   requestSite,
   removeSite,
+  enabledFeedSiteIds,
   loadSettings,
   saveSettings,
   onSettingsChanged,

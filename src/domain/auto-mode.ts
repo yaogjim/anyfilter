@@ -1,3 +1,4 @@
+import { HN_HOST } from './hn';
 import type { ClassifyError } from './messages';
 
 /**
@@ -163,7 +164,9 @@ export function refusalOf(state: AutoState, now: number): AutoRefusal | null {
 
 // --- which pages -----------------------------------------------------------------
 
+// Hacker News has its own switch in the panel; auto judging never reads it as a page.
 const NEVER_AUTO_HOSTS = [
+  HN_HOST,
   'x.com',
   'twitter.com',
   'api.typesafe.ai',

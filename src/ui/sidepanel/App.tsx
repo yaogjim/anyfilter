@@ -11,6 +11,7 @@ import type { PageGateway, PanelGateway } from './PanelGateway';
 import { ReviewDataSection } from './ReviewDataSection';
 import { ReviewSwitch } from './ReviewSwitch';
 import { SettingsSection } from './SettingsSection';
+import { SitesSection } from './SitesSection';
 import { Tiles } from './Tiles';
 import { useSubscribedValue } from './use-subscribed-value';
 import { VerificationSection } from './VerificationSection';
@@ -28,7 +29,10 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
       // Only an ordinary web page can be judged; on X, a new tab or a browser page
       // the home view is the useful one.
       const url = tab.url ?? '';
-      const judgeable = /^https?:\/\//.test(url) && !url.startsWith('https://x.com/');
+      const judgeable =
+        /^https?:\/\//.test(url) &&
+        !url.startsWith('https://x.com/') &&
+        !url.startsWith('https://news.ycombinator.com/');
       if (active && !chosen.current && judgeable) setView('page');
     });
     return () => {
@@ -81,6 +85,7 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
           </section>
           <ReviewSwitch scope="home" on={current.reviewMode} onChange={(reviewMode) => updateSettings({ reviewMode })} />
           <HiddenGroups state={state} labelOrder={labelOrder} onOverride={gateway.override} />
+          <SitesSection gateway={gateway} />
         </>
       )}
       {settingsVisited && (

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { postUrl, profileUrl, type Post } from '../../domain/post';
+import { authorUrl, postSource, postUrl, type Post } from '../../domain/post';
 import { useLanguage } from '../language';
 import { Avatar } from './Avatar';
 
@@ -17,7 +17,8 @@ function ImageGrid({ urls }: { urls: string[] }) {
 
 export function PostCard({ post, children }: { post: Post; children: ReactNode }) {
   const { t } = useLanguage();
-  const profile = profileUrl(post.handle);
+  const profile = authorUrl(post);
+  const fromHn = postSource(post) === 'hn';
   return (
     <article className="mx-1 mb-2 rounded-2xl border border-line bg-white px-3 pt-3 pb-2">
       <div className="flex gap-2.5">
@@ -29,9 +30,13 @@ export function PostCard({ post, children }: { post: Post; children: ReactNode }
             <a href={profile} target="_blank" rel="noreferrer" className="truncate font-bold text-ink hover:underline">
               {post.name || `@${post.handle}`}
             </a>
-            <a href={profile} target="_blank" rel="noreferrer" className="truncate text-ink-2 hover:underline">
-              @{post.handle}
-            </a>
+            {fromHn ? (
+              <span className="flex-none text-ink-2">· Hacker News</span>
+            ) : (
+              <a href={profile} target="_blank" rel="noreferrer" className="truncate text-ink-2 hover:underline">
+                @{post.handle}
+              </a>
+            )}
             {post.time && (
               <a href={postUrl(post)} target="_blank" rel="noreferrer" className="flex-none text-ink-2 hover:underline">
                 · {post.time}

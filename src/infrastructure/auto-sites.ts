@@ -1,4 +1,5 @@
 import { hostOfPattern, neverAuto } from '../domain/auto-mode';
+import { FEED_SITES } from '../domain/feed-sites';
 
 /**
  * Site authorisations for auto mode are the browser's own optional host
@@ -42,4 +43,18 @@ export async function removeSite(pattern: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Ids of the feed sites (Hacker News) the browser currently grants. The same
+ * grant that registers their script; there is no second switch to keep in step. */
+export async function enabledFeedSiteIds(): Promise<string[]> {
+  const ids: string[] = [];
+  for (const site of FEED_SITES) {
+    try {
+      if (await chrome.permissions.contains({ origins: [site.pattern] })) ids.push(site.id);
+    } catch {
+      // Treated as not granted.
+    }
+  }
+  return ids;
 }

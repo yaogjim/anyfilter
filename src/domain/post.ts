@@ -1,5 +1,9 @@
 export type PostKind = 'post' | 'reply';
 
+/** Where a post was read. Absent means X, so everything stored before there was a
+ * second site stays valid without a migration. */
+export type PostSource = 'x' | 'hn';
+
 export interface ParentPost {
   id: string;
   name: string;
@@ -25,10 +29,27 @@ export interface Post {
   quotedName: string;
   quotedText: string;
   truncated: boolean;
+  /** Only set for sites other than X. */
+  source?: PostSource;
+  /** Link to the post itself, for sites other than X. X posts build theirs from
+   * the handle and id. */
+  url?: string;
+}
+
+export function postSource(post: Post): PostSource {
+  return post.source ?? 'x';
 }
 
 export function postUrl(post: Post): string {
+  if (post.url !== undefined && post.url !== '') return post.url;
   return statusUrl(post.handle, post.id);
+}
+
+/** The author's page on the site the post came from. */
+export function authorUrl(post: Post): string {
+  return postSource(post) === 'hn'
+    ? `https://news.ycombinator.com/user?id=${encodeURIComponent(post.handle)}`
+    : profileUrl(post.handle);
 }
 
 export function statusUrl(handle: string, id: string): string {
@@ -71,7 +92,9 @@ export function isPost(value: unknown): value is Post {
     typeof record.hasVideo === 'boolean' &&
     typeof record.quotedName === 'string' &&
     typeof record.quotedText === 'string' &&
-    typeof record.truncated === 'boolean'
+    typeof record.truncated === 'boolean' &&
+    (record.source === undefined || record.source === 'x' || record.source === 'hn') &&
+    (record.url === undefined || typeof record.url === 'string')
   );
 }
 
@@ -100,6 +123,9 @@ export function postContentKey(post: Post): string {
     post.imageUrls,
     post.thread,
     post.parent ? [post.parent.id, post.parent.handle, post.parent.text] : null,
+    // Appended only for other sites, so the key of every X post is what it always was
+    // and no stored score is invalidated.
+    ...(postSource(post) === 'x' ? [] : [postSource(post)]),
   ]);
 }
 
