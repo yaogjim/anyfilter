@@ -1,3 +1,4 @@
+import { isJudgePageResult, type JudgePageResult } from '../domain/article-judgement';
 import type { ClassifierPort } from '../domain/classifier-port';
 import {
   isCaptureState,
@@ -83,6 +84,22 @@ export class BackgroundClient implements ClassifierPort, VerdictSink {
 
   async override(postId: string, shown: boolean): Promise<void> {
     await send({ type: 'override', postId, shown });
+  }
+
+  /** Asks the background to read the page in one tab and judge it. */
+  async judgePage(tabId: number): Promise<JudgePageResult> {
+    try {
+      const response = await send({ type: 'judge-page', tabId });
+      return isJudgePageResult(response)
+        ? response
+        : { ok: false, error: 'bad-response', detail: 'malformed response from background' };
+    } catch (error) {
+      return {
+        ok: false,
+        error: 'network',
+        detail: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   async clearData(): Promise<void> {

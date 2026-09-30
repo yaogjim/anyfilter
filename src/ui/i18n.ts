@@ -10,6 +10,8 @@
  */
 import { evaluationEn } from './locales/evaluation.en';
 import { evaluationZh } from './locales/evaluation.zh-CN';
+import { pageEn } from './locales/page.en';
+import { pageZh } from './locales/page.zh-CN';
 import { reviewEn } from './locales/review.en';
 import { reviewZh } from './locales/review.zh-CN';
 import { settingsEn } from './locales/settings.en';
@@ -19,7 +21,7 @@ import { shellZh } from './locales/shell.zh-CN';
 import { verificationEn } from './locales/verification.en';
 import { verificationZh } from './locales/verification.zh-CN';
 
-const en = { ...settingsEn, ...verificationEn, ...shellEn, ...reviewEn, ...evaluationEn };
+const en = { ...settingsEn, ...verificationEn, ...shellEn, ...reviewEn, ...evaluationEn, ...pageEn };
 export type TranslationKey = keyof typeof en;
 const zh: Record<TranslationKey, string> = {
   ...settingsZh,
@@ -27,6 +29,7 @@ const zh: Record<TranslationKey, string> = {
   ...shellZh,
   ...reviewZh,
   ...evaluationZh,
+  ...pageZh,
 };
 
 export type UiLocale = 'en' | 'zh-CN';

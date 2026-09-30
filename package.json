@@ -18,9 +18,11 @@
     "review:report": "node scripts/review-labels-report.mjs",
     "rule:replay": "node scripts/rule-replay.mjs",
     "rule:apply": "node scripts/apply-rule-pack.mjs",
-    "e2e": "node scripts/e2e-offline.mjs"
+    "e2e": "node scripts/e2e-offline.mjs",
+    "e2e:page": "node scripts/e2e-page-judge.mjs"
   },
   "dependencies": {
+    "defuddle": "0.19.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

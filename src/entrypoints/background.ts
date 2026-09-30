@@ -22,6 +22,8 @@ import {
   recordObservations,
   setCaptureRunState,
 } from '../infrastructure/capture-store';
+import { judgePage } from '../infrastructure/article-judge';
+import { recordToolbarClick } from '../infrastructure/toolbar-click';
 import { classifyPost } from '../infrastructure/classifier';
 import {
   disableVerificationBudget,
@@ -51,6 +53,7 @@ import { updatePanelState } from '../infrastructure/panel-state-store';
 import { previewRules } from '../infrastructure/rule-preview';
 import { forgetScores } from '../infrastructure/score-cache';
 import { saveRules } from '../infrastructure/settings-store';
+import type { JudgePageResult } from '../domain/article-judgement';
 import type { ReviewSaveResult } from '../domain/review-record';
 import { assertNever } from '../lib/assert-never';
 
@@ -276,42 +279,54 @@ async function handle(message: RuntimeMessage, sender: chrome.runtime.MessageSen
     case 'review-reload':
       // Addressed to a tab's content script, never to the background.
       return undefined;
+    case 'judge-page': {
+      // The one path that reads an arbitrary page and sends its text out. Only one
+      // of our own pages may ask, and the browser only lets the read through on a
+      // tab the person opened AnyFilter on (`activeTab`).
+      const kind = senderKind(sender, chrome.runtime.id);
+      if (kind !== 'extension-page') {
+        console.warn(`[AnyFilter] refused judge-page from a ${kind} sender`);
+        return { ok: false, error: 'no-access', detail: 'refused' } satisfies JudgePageResult;
+      }
+      return judgePage(message.tabId);
+    }
     default:
       return assertNever(message);
   }
 }
 
-function enablePanelForTab(tabId: number, url: string | undefined): Promise<void> {
-  return chrome.sidePanel.setOptions({
-    tabId,
-    path: 'sidepanel.html',
-    enabled: url?.startsWith(X_ORIGIN) ?? false,
-  });
-}
-
-async function restrictPanelToX(): Promise<void> {
-  await chrome.sidePanel.setOptions({ path: 'sidepanel.html', enabled: false });
-  const tabs = await chrome.tabs.query({});
-  await Promise.all(
-    tabs.map((tab) => (tab.id === undefined ? undefined : enablePanelForTab(tab.id, tab.url))),
-  );
+/**
+ * The panel is available on every tab. It used to be enabled only on X because
+ * it only had X features; the "this page" view works anywhere, and its read of a
+ * page is decided by the browser (`activeTab`), not by where the panel is on.
+ */
+async function enablePanel(): Promise<void> {
+  await chrome.sidePanel.setOptions({ path: 'sidepanel.html', enabled: true });
 }
 
 export default defineBackground(() => {
-  chrome.runtime.onInstalled.addListener(() => {
-    void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  // The icon opens the panel from `action.onClicked`, not through the browser's
+  // built-in `openPanelOnActionClick`. Only the first grants `activeTab` on the
+  // tab that was clicked, and `activeTab` is what lets "judge this page" read a
+  // page without asking for access to every site. The behavior flag is stored by
+  // the browser, so an install that ran an older version still has it on: turn it
+  // off on every start, not only at install.
+  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+  chrome.action.onClicked.addListener((tab) => {
+    // `sidePanel.open` needs the click's user gesture, so nothing may be awaited
+    // before it.
+    if (tab.id !== undefined) void chrome.sidePanel.open({ tabId: tab.id });
+    // An open panel gets no tab event for this click, but its idea of what the
+    // tab allows has just changed.
+    void recordToolbarClick().catch(() => undefined);
   });
 
-  void restrictPanelToX();
+  void enablePanel();
   void pruneExpiredCaptureSamples();
   // Mark requests interrupted by a worker restart as unknown without releasing
   // their reservations or sending them again. The budget store serializes this
   // recovery before any new request can reserve money in this worker.
   void recoverUnsettledEvaluationJobs();
-
-  chrome.tabs.onUpdated.addListener((tabId, _changeInfo, tab) => {
-    void enablePanelForTab(tabId, tab.url);
-  });
 
   chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (!isRuntimeMessage(message)) return false;

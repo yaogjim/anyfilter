@@ -95,6 +95,10 @@ export function installChrome({ local = {}, session = {} } = {}) {
   const onChanged = makeEvent();
   const notify = (changes, areaName) => onChanged.emit(changes, areaName);
   const onMessage = makeEvent();
+  const actionClicked = makeEvent();
+  const sidePanelOptions = [];
+  const panelBehaviors = [];
+  const sidePanelOpens = [];
 
   globalThis.chrome = {
     storage: {
@@ -116,15 +120,28 @@ export function installChrome({ local = {}, session = {} } = {}) {
       sendMessage: async () => undefined,
       onUpdated: makeEvent(),
     },
+    action: { onClicked: actionClicked },
     sidePanel: {
-      setOptions: async () => undefined,
-      setPanelBehavior: async () => undefined,
+      setOptions: async (options) => {
+        sidePanelOptions.push(options);
+      },
+      setPanelBehavior: async (behavior) => {
+        panelBehaviors.push(behavior);
+      },
+      open: async (options) => {
+        sidePanelOpens.push(options);
+      },
     },
   };
 
   return {
     storageChanged: onChanged,
     onMessage,
+    /** Toolbar icon: the listeners run, and what they asked the side panel to do. */
+    clickToolbarIcon: (tab) => actionClicked.invoke(tab),
+    sidePanelOptions,
+    panelBehaviors,
+    sidePanelOpens,
     /** Delivers one runtime message to the registered listeners and resolves with
      * whatever the listener answered. A listener that does not ask to answer
      * asynchronously resolves to `undefined` immediately; a listener that hangs

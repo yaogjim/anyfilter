@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Settings } from '../../domain/settings';
 import { useLanguage } from '../language';
 import { CaptureSection } from './CaptureSection';
 import { Header, type PanelView } from './Header';
 import { EvaluationSection } from './EvaluationSection';
 import { HiddenGroups } from './HiddenGroups';
-import type { PanelGateway } from './PanelGateway';
+import { PageSection } from './PageSection';
+import type { PageGateway, PanelGateway } from './PanelGateway';
 import { ReviewDataSection } from './ReviewDataSection';
 import { ReviewSwitch } from './ReviewSwitch';
 import { SettingsSection } from './SettingsSection';
@@ -13,10 +14,26 @@ import { Tiles } from './Tiles';
 import { useSubscribedValue } from './use-subscribed-value';
 import { VerificationSection } from './VerificationSection';
 
-export function App({ gateway }: { gateway: PanelGateway }) {
+export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
   const { t } = useLanguage();
   const [view, setView] = useState<PanelView>('home');
   const [settingsVisited, setSettingsVisited] = useState(false);
+  // Which view to open on: X keeps its overview, any other page opens on "this
+  // page". Decided once, and only if the person has not already picked a view.
+  const chosen = useRef(false);
+  useEffect(() => {
+    let active = true;
+    void gateway.loadActiveTab().then((tab) => {
+      // Only an ordinary web page can be judged; on X, a new tab or a browser page
+      // the home view is the useful one.
+      const url = tab.url ?? '';
+      const judgeable = /^https?:\/\//.test(url) && !url.startsWith('https://x.com/');
+      if (active && !chosen.current && judgeable) setView('page');
+    });
+    return () => {
+      active = false;
+    };
+  }, [gateway]);
   const settings = useSubscribedValue(gateway.loadSettings, gateway.onSettingsChanged);
   const panel = useSubscribedValue(gateway.loadPanelState, gateway.onPanelStateChanged);
 
@@ -32,6 +49,7 @@ export function App({ gateway }: { gateway: PanelGateway }) {
     void gateway.saveSettings({ ...current, ...patch });
   };
   const navigate = (next: PanelView): void => {
+    chosen.current = true;
     if (next === 'settings') setSettingsVisited(true);
     setView(next);
   };
@@ -49,6 +67,7 @@ export function App({ gateway }: { gateway: PanelGateway }) {
           onToggle={(filterOn) => updateSettings({ filterOn })}
         />
       </div>
+      {view === 'page' && <PageSection gateway={gateway} />}
       {view === 'home' && (
         <>
           <section className="rounded-xl border border-line bg-white p-3.5" aria-label={t('shell.overview')}>

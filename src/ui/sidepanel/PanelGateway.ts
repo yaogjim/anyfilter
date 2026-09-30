@@ -1,3 +1,4 @@
+import type { JudgePageResult } from '../../domain/article-judgement';
 import type { ReviewRecord } from '../../domain/review-record';
 import type { CaptureRunState, CaptureState } from '../../domain/capture';
 import type { EvaluationConnections, LabellerId } from '../../domain/evaluation-pricing';
@@ -21,6 +22,21 @@ import type { PanelState } from '../../domain/panel-state';
 import type { PostKind } from '../../domain/post';
 import type { PreviewInput, PreviewResult, Rule, SaveRulesResult } from '../../domain/rule';
 import type { Settings } from '../../domain/settings';
+
+/** The tab the person is looking at. `url` is only known when the browser lets an
+ * extension see it (an X tab, or a tab the icon was clicked on). */
+export interface ActiveTab {
+  id: number | null;
+  url: string | null;
+}
+
+/** "This page": which tab is active, and the one background call that reads and
+ * judges it. Side panel only; the options page has no active page to judge. */
+export interface PageGateway {
+  loadActiveTab(): Promise<ActiveTab>;
+  onActiveTabChanged(listener: (tab: ActiveTab) => void): () => void;
+  judgePage(tabId: number): Promise<JudgePageResult>;
+}
 
 export interface PanelGateway {
   loadSettings(): Promise<Settings>;

@@ -26,6 +26,33 @@ it is not a provider-enforced hard spending cap if the provider changes pricing.
 charged; normal filtering and text preview are not covered by this verification
 budget. The resulting score is not an accuracy measurement.
 
+**Judging a web page (manual, one page at a time).** On a page that is not X, the
+side panel has a *Judge this page* button. It works only after you click the
+extension's toolbar icon on that tab, which is what gives Chrome's `activeTab`
+permission for that one tab; it is lost when you switch tabs or the tab goes to
+another site. The extension has no standing access to other sites and no content
+script on them. When you press the button, a reader script is injected into that one
+tab, extracts the article from the page (nothing is fetched from third parties), and
+sends the provider you picked in Settings:
+
+- the page title, and the author, site name, publication date, description,
+  language and headings when the page declares them, and the article text up to the
+  first 2000 words (the page's full word count is sent as a number). The page's
+  address is not sent;
+- whether the page looks truncated or paywalled;
+- the two questions being asked (pure marketing, clickbait) and a readability check;
+- your API key, in the request's authorization header.
+
+Pages that are obviously not articles (a sign-in page, a bare home page, a block or
+error page, a page of fewer than 200 words) are refused by the extension itself and
+send nothing. The page text is used for that one request; it is not stored, cached
+or added to any counter. The result the panel shows is "reads like…" with a
+probability, not a statement of fact. X pages are refused too: X is read by the feed
+filter, post by post. Nothing runs in the background and no page is read unless you
+click. To keep the panel in step with the toolbar click, a timestamp of the last click
+is kept in session storage (gone when the browser closes); it contains nothing about
+the page.
+
 **Real evaluation (opt-in, off by default).** The side panel's *Real evaluation*
 section can ask three labellers about your saved verification samples: TypeSafe
 Jev 1.13, OpenAI `gpt-6-luna` and DeepSeek `deepseek-flash`. It runs only after you

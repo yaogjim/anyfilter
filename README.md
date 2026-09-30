@@ -22,6 +22,8 @@ To build it yourself: `pnpm install && pnpm build`, then load `.output/chrome-mv
 
 Where it works: the X home timeline, search results, a post's conversation, a user's profile (the Posts tab, `x.com/<handle>`) and a list (`x.com/i/lists/<id>`). Replies, Media and Likes tabs are left alone. Verification samples are still only collected on home, search and post pages, never on profiles or lists.
 
+Any other web page: click the toolbar icon on the page, then press **Judge this page** in the panel. It reads that one page once, on demand, and shows whether it reads like pure marketing or clickbait, with the probability and the threshold each rule uses. Nothing is read in the background, and the page text is not stored. The two rules are new and their thresholds (marketing 40%, clickbait 50%) were fitted on a small set of pages labelled by us; treat a result as a hint. What is sent is listed in [PRIVACY.md](PRIVACY.md); the rules and the evidence behind them are in [docs/article-rules.md](docs/article-rules.md).
+
 Text only: rules read the post text, the author's name and handle, and quoted or parent text. Images and video are not analyzed. The percentage shown is a model probability compared with your threshold, not an accuracy rate. The full per-rule specification, including what each rule must not match and where it stops, is in [docs/filter-rules.md](docs/filter-rules.md).
 
 <p>
@@ -37,6 +39,7 @@ pnpm typecheck
 pnpm test:unit    # offline unit tests
 pnpm eval:rules   # offline rule-evaluation report
 pnpm e2e          # offline end-to-end run against static fixtures
+pnpm e2e:page     # real headed Chrome: toolbar click, side panel, "Judge this page"
 ```
 
 `pnpm test:unit` runs `scripts/test/*.test.mjs` with Node's built-in test runner and no extra dependencies. It imports the extension's TypeScript sources directly through Node's type stripping, which `scripts/ts-loader.mjs` extends to cover the project's extensionless relative imports. Node 22.6 or newer is required; on an older Node the runner prints a skip notice instead of failing.
@@ -67,7 +70,7 @@ src/entrypoints/     content, background, sidepanel, options
 scripts/             offline tests, evaluation report, e2e harness
 ```
 
-To support another site, implement `domain/timeline-view.ts` for it and add its URL to the content script. Plans for general web pages and more sites (nothing implemented yet) are in [docs/multi-site-design.md](docs/multi-site-design.md).
+To support another site, implement `domain/timeline-view.ts` for it and add its URL to the content script. Manual "Judge this page" on general web pages is implemented (stage 2, v1); automatic judging and more sites are still plans, in [docs/multi-site-design.md](docs/multi-site-design.md).
 
 ## License
 

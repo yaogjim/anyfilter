@@ -21,7 +21,7 @@ function statusText(settings: Settings, state: PanelState, t: Translate): string
   }
 }
 
-export type PanelView = 'home' | 'settings' | 'verification';
+export type PanelView = 'home' | 'page' | 'settings' | 'verification';
 
 export function Header({
   settings,
@@ -65,6 +65,7 @@ export function Header({
         </button>
         <nav className="ml-auto flex flex-none items-center gap-1" aria-label={t('shell.nav.views')}>
           {([
+            { id: 'page', labelKey: 'page.nav' },
             { id: 'settings', labelKey: 'shell.nav.settings' },
             { id: 'verification', labelKey: 'shell.nav.verification' },
           ] as const).map(({ id, labelKey }) => (

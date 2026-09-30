@@ -10,13 +10,41 @@ import {
 import { loadPanelState, onPanelStateChanged } from '../../infrastructure/panel-state-store';
 import { loadReviewCount, loadReviewStore, onReviewRecordsChanged } from '../../infrastructure/review-store';
 import { loadSettings, onSettingsChanged, saveSettings } from '../../infrastructure/settings-store';
+import { onToolbarClick } from '../../infrastructure/toolbar-click';
 import { LanguageProvider } from '../../ui/language';
 import { App } from '../../ui/sidepanel/App';
-import type { PanelGateway } from '../../ui/sidepanel/PanelGateway';
+import type { ActiveTab, PageGateway, PanelGateway } from '../../ui/sidepanel/PanelGateway';
 
 const client = new BackgroundClient();
 
-const gateway: PanelGateway = {
+async function loadActiveTab(): Promise<ActiveTab> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return { id: tab?.id ?? null, url: tab?.url ?? null };
+}
+
+/** Fires when the person switches tabs, the active tab moves to another page, or
+ * the toolbar icon is clicked (which is what makes a tab's address readable). */
+function onActiveTabChanged(listener: (tab: ActiveTab) => void): () => void {
+  const notify = (): void => {
+    void loadActiveTab().then(listener);
+  };
+  const onUpdated = (_tabId: number, change: chrome.tabs.TabChangeInfo): void => {
+    if (change.url !== undefined || change.status === 'loading') notify();
+  };
+  chrome.tabs.onActivated.addListener(notify);
+  chrome.tabs.onUpdated.addListener(onUpdated);
+  const stopToolbar = onToolbarClick(notify);
+  return () => {
+    chrome.tabs.onActivated.removeListener(notify);
+    chrome.tabs.onUpdated.removeListener(onUpdated);
+    stopToolbar();
+  };
+}
+
+const gateway: PanelGateway & PageGateway = {
+  loadActiveTab,
+  onActiveTabChanged,
+  judgePage: (tabId) => client.judgePage(tabId),
   loadSettings,
   saveSettings,
   onSettingsChanged,

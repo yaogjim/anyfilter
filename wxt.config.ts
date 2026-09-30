@@ -13,7 +13,9 @@ export default defineConfig({
     description:
       'Hide anything, on any site. Hides ads, engagement bait, promos, platitudes, hate, spam bots and anything you describe, and shows you what it hid. X first, more sites coming. Bring your own Jev API key.',
     version: '0.4.0.0',
-    permissions: ['storage', 'sidePanel'],
+    // `activeTab` and `scripting` let "judge this page" read the one tab the
+    // person opened the panel on, and nothing else: no site permission is added.
+    permissions: ['storage', 'sidePanel', 'activeTab', 'scripting'],
     host_permissions: [
       'https://x.com/*',
       'https://ai-gateway.vercel.sh/*',
