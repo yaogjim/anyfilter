@@ -28,6 +28,10 @@ const typesafeCalls = [];
 /** Real-evaluation calls to the two independent machine labellers, with the
  * Authorization header each carried, so key isolation can be asserted. */
 const openaiCalls = [];
+/** Rule-drafting requests to the assistant model, kept apart from evaluation runs.
+ * `draftMode` picks what the mock answers: a good draft, or one that cannot be used. */
+const draftCalls = [];
+let draftMode = 'good';
 const deepseekCalls = [];
 let failures = 0;
 mkdirSync(path.join(ROOT, 'tmp'), { recursive: true });
@@ -130,6 +134,29 @@ await context.route('**/*', async (route) => {
   }
   if (url.startsWith('https://api.openai.com/') || url.startsWith('https://relay.example/')) {
     const body = JSON.parse(route.request().postData() ?? '{}');
+    if (String(body.messages?.[0]?.content ?? '').includes('You draft one content-filtering rule')) {
+      draftCalls.push({ url, body, authorization: route.request().headers().authorization ?? '' });
+      const draft =
+        draftMode === 'good'
+          ? {
+              label: 'Course sellers',
+              group: 'Marketing',
+              include: 'Is this post mainly selling or promoting a paid course?',
+              exclude: 'the post only shares free learning material',
+              examplesYes: ['Join my course, 50% off today'],
+              examplesNo: ['Here is a free guide to get started'],
+              scope: 'all',
+            }
+          : { label: 'Broken', group: '', include: '', exclude: '', examplesYes: [], examplesNo: [], scope: 'all' };
+      await route.fulfill({
+        json: {
+          model: `${body.model}-2026-08-01`,
+          choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(draft) } }],
+          usage: { prompt_tokens: 500, completion_tokens: 160 },
+        },
+      });
+      return;
+    }
     openaiCalls.push({ url, body, authorization: route.request().headers().authorization ?? '' });
     await route.fulfill({
       json: {
@@ -238,7 +265,25 @@ check(
 );
 check(await panel.locator('[data-anyfilter-nav="home"]').getAttribute('aria-pressed') === 'true', 'home is the default view');
 check((await panel.locator('[data-anyfilter-verification="section"]').count()) === 0, 'home does not mount the long sample list');
+check(
+  (await panel.locator('[data-anyfilter-banner="no-key"]').count()) === 1,
+  'home says a key is missing, with a way to add one',
+);
+await panel.locator('[data-anyfilter-nav="page"]').click();
+check(
+  (await panel.locator('[data-anyfilter-banner="no-key"]').count()) === 1,
+  'the missing-key banner follows to the This page view',
+);
+await panel.locator('[data-anyfilter-nav="verification"]').click();
+check(
+  (await panel.locator('[data-anyfilter-banner="no-key"]').count()) === 1,
+  'and to the Verify view',
+);
 await panel.locator('[data-anyfilter-nav="settings"]').click();
+check(
+  (await panel.locator('[data-anyfilter-banner]').count()) === 0,
+  'Settings has no banner: the key field is already on screen',
+);
 check(await panel.locator('#anyfilter-key').isVisible(), 'settings open inside the side panel');
 check(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'settings fit a 360px side panel');
 await panel.screenshot({ path: path.join(ROOT, 'tmp', 'sidepanel-settings.png'), fullPage: true });
@@ -253,6 +298,19 @@ await panel.getByRole('button', { name: 'Open full page' }).click();
 const options = await settingsPageOpened;
 await options.waitForLoadState();
 check(options.url().endsWith('/options.html'), 'full settings can still open as a separate browser tab');
+
+// The verification view shows one tool at a time. `openVerifyTab` goes to the view
+// and picks a tab; `showVerifyTab` only switches, for a view that is already open.
+// Tab ids: 'evaluation' (default), 'single', 'review'.
+const showVerifyTab = async (id) => {
+  const tab = panel.locator(`[data-anyfilter-tab="${id}"]`);
+  await tab.waitFor();
+  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+};
+const openVerifyTab = async (id) => {
+  await panel.locator('[data-anyfilter-nav="verification"]').click();
+  await showVerifyTab(id);
+};
 
 // ---------------------------------------------------------------------------
 // Interface language, end to end: English is the default, 简体中文 is a stored
@@ -310,11 +368,12 @@ check(
   ),
   'the settings page renders its Chinese copy as well',
 );
-await panel.locator('[data-anyfilter-nav="verification"]').click();
+await openVerifyTab('single');
 check(
   (await panel.locator('[data-anyfilter-verification="section"]').getByRole('heading', { name: '单条验证' }).count()) === 1 &&
-    (await panel.locator('[data-anyfilter-capture="section"]').getByRole('heading', { name: '采集管理' }).count()) === 1,
-  'the verification and capture views use Chinese instead of bilingual copy',
+    (await panel.locator('[data-anyfilter-verify="strip"]').getByText('采集', { exact: false }).count()) >= 1 &&
+    (await panel.locator('[data-anyfilter-verify="strip"] [data-anyfilter-strip="go-settings"]').textContent())?.trim() === '去设置',
+  'the verification view and its status strip use Chinese instead of bilingual copy',
 );
 check(
   ((await panel.locator('[data-anyfilter-verification="section"]').textContent()) ?? '').includes('并非服务商强制执行的消费限额'),
@@ -415,8 +474,37 @@ check(
 );
 const hiddenTile = await panel.locator('div:has(> div:text-is("Hidden posts")) > div:nth-child(2) > span').first().textContent();
 check(hiddenTile?.trim() === '4', `Hidden tile counts 4 (got ${hiddenTile?.trim()})`);
-const savedTile = await panel.locator('div:has(> div:text-is("Time saved")) > div:nth-child(2) > span').first().textContent();
-check(savedTile?.trim() === '32s', `Time saved tile shows 32s (got ${savedTile?.trim()})`);
+const savedTile = await panel.locator('[data-anyfilter-stat="timeSaved"] b').first().textContent();
+check(savedTile?.trim() === '32s', `Time saved figure shows 32s (got ${savedTile?.trim()})`);
+check(
+  (await panel.locator('[data-anyfilter-stat="secondary"] [data-anyfilter-stat]').count()) === 3,
+  'time saved, spend and tokens are the quieter figures on one row',
+);
+check(
+  (await panel.locator('[data-anyfilter-banner]').count()) === 0,
+  'no banner shows while a key is set and requests succeed',
+);
+check(
+  (await panel.locator('[data-anyfilter-tab="post"]').textContent())?.includes('4') === true &&
+    (await panel.locator('[data-anyfilter-tab="post"]').getAttribute('aria-selected')) === 'true',
+  'hidden items open on the Posts tab and show how many there are',
+);
+await panel.locator('[data-anyfilter-groupby="category"]').click();
+check(
+  await waitFor(async () => (await postsSection.getByText('Marketing').count()) > 0 && (await postsSection.getByText('Engagement').count()) > 0, 'category groups'),
+  'grouping by category lists the default categories',
+);
+await panel.locator('[data-anyfilter-groupby="rule"]').click();
+check(
+  await waitFor(async () => (await postsSection.getByRole('button', { name: /Engagement bait/ }).count()) > 0, 'rule groups again'),
+  'grouping by rule brings the rule groups back',
+);
+// Regrouping starts every group collapsed; open the one the next checks use.
+await postsSection.getByRole('button', { name: /Engagement bait/ }).click();
+check(
+  await waitFor(async () => (await panel.getByRole('button', { name: /Roman Shalabanov/ }).count()) === 1, 'expanded again'),
+  'the engagement group can be opened again after regrouping',
+);
 check((await panel.locator('h1 + p').count()) === 0, 'header shows no status line while everything is fine');
 
 await panel.getByRole('switch').click();
@@ -788,7 +876,7 @@ await reviewPanelRoot.press('Escape');
 check(await waitFor(async () => (await reviewPanelRoot.count()) === 0, 'panel closed'), 'Escape closes the panel');
 
 // Deleting everything from the side panel empties the store and the page.
-await panel.locator('[data-anyfilter-nav="verification"]').click();
+await openVerifyTab('review');
 check(
   await waitFor(async () => ((await panel.locator('[data-anyfilter-review="count"]').textContent()) ?? '').includes('1 labels'), 'count shown'),
   'the verification view counts the stored review labels',
@@ -993,7 +1081,7 @@ check(
   (await panel.locator('[data-anyfilter-review="toggle"]').getAttribute('aria-pressed')) === 'false',
   'Exit on the toolbar turns the global switch off, not just this page',
 );
-await panel.locator('[data-anyfilter-nav="verification"]').click();
+await openVerifyTab('review');
 await panel.locator('[data-anyfilter-review="delete-all"]').click();
 await panel.locator('[data-anyfilter-nav="home"]').click();
 
@@ -1013,6 +1101,7 @@ check(
   !conversationCalls.some((call) => call.state?.text?.includes('yeah true')),
   'own reply is not classified at all',
 );
+await panel.locator('[data-anyfilter-tab="reply"]').click();
 check(
   await waitFor(async () => (await repliesSection.getByText('Porn bots').count()) > 0, 'replies group'),
   'Replies section shows the Porn bots group',
@@ -1023,9 +1112,10 @@ check(
   'reply group names the post it was under',
 );
 check((await repliesSection.locator('img[src*="profile_images/karen"]').count()) === 2, 'avatar read from a background-image style (group header + row)');
-const sectionCount = (section) => section.locator('h2 + span').first().textContent();
-check(await waitFor(async () => (await sectionCount(postsSection))?.trim() === '5', 'posts count'), 'Posts section keeps its own count');
-check((await sectionCount(repliesSection))?.trim() === '1', 'Replies section shows its own count');
+const tabCount = async (id) => ((await panel.locator(`[data-anyfilter-tab="${id}"]`).textContent()) ?? '').match(/\d+/)?.[0];
+check(await waitFor(async () => (await tabCount('post')) === '5', 'posts count'), 'the Posts tab keeps its own count');
+check((await tabCount('reply')) === '1', 'the Replies tab shows its own count');
+await panel.locator('[data-anyfilter-tab="post"]').click();
 
 await feed.goto('https://x.com/notifications');
 await new Promise((resolve) => setTimeout(resolve, 800));
@@ -1035,7 +1125,7 @@ await feed.goto('https://x.com/home');
 const adRule = options.locator('[data-rule-choice="ads"]');
 check((await adRule.count()) === 1, 'the local ads rule is visible in Settings');
 await options.getByRole('searchbox', { name: 'Search rules' }).fill('Politics');
-check((await options.getByRole('list', { name: 'Rules' }).getByRole('listitem').count()) === 1, 'rule search narrows the list');
+check((await options.locator('[data-rule-choice]').count()) === 1, 'rule search narrows the list');
 await options.locator('[data-rule-choice="politics"]').click();
 check((await options.locator('[data-anyfilter-rule="politics"]').getByRole('textbox', { name: 'Hide when' }).count()) === 1, 'selecting a rule opens its editor');
 await options.getByRole('searchbox', { name: 'Search rules' }).fill('');
@@ -1055,6 +1145,7 @@ check(
   await waitFor(() => cellHidden('cell-keep'), 'custom rule hides matching post'),
   'saved custom rule hides a matching post through mock Jev',
 );
+await options.getByRole('tab', { name: 'Test', exact: true }).click();
 await options.getByRole('textbox', { name: 'Text to test' }).fill('Next.js benchmarks improved today');
 await options.getByRole('button', { name: 'Test text' }).click();
 check(
@@ -1064,6 +1155,82 @@ check(
 check(
   await waitFor(async () => (await options.getByText('would hide', { exact: true }).count()) >= 1, 'preview matched score'),
   'text preview shows a matching score against the threshold',
+);
+
+// Rule categories: default grouping, a new category made and filled from the
+// settings page, saved together with the rules, kept after a reload, and deleted
+// with its rules falling back to "uncategorised". A category never re-scores.
+check(
+  (await options.locator('[data-anyfilter-section-group="engagement"] [data-rule-choice="bait"]').count()) === 1 &&
+    (await options.locator('[data-anyfilter-section-group="marketing"] [data-rule-choice="ads"]').count()) === 1,
+  'built-in rules are listed under their default category',
+);
+check(
+  ((await options.locator('[data-anyfilter-group-count="marketing"]').textContent()) ?? '').includes('3/3'),
+  'a category shows how many of its rules are on',
+);
+await options.locator('[data-anyfilter-groups="toggle"]').click();
+await options.getByRole('textbox', { name: 'New category name' }).fill('Benchmarks');
+await options.getByRole('button', { name: 'Add category' }).click();
+await options.getByRole('textbox', { name: 'New category name' }).fill('benchmarks');
+await options.getByRole('button', { name: 'Add category' }).click();
+check(
+  await waitFor(async () => (await options.locator('[data-anyfilter-groups="manager"]').getByRole('alert').count()) === 1, 'duplicate category name'),
+  'a category name that is already taken is refused',
+);
+await options.getByRole('button', { name: 'Done' }).click();
+await options.locator('[data-rule-choice^="custom:"]').click();
+await options.locator('[data-anyfilter-rule^="custom:"]').getByLabel('Category').selectOption({ label: 'Benchmarks' });
+check(
+  await waitFor(async () => (await options.locator('[data-anyfilter-rules="dirty"]').count()) === 1, 'category change is unsaved'),
+  'changing a rule category is an unsaved edit',
+);
+const callsBeforeRegroup = jevCalls.length;
+await options.getByRole('button', { name: 'Save and apply' }).click();
+check(
+  await waitFor(async () => (await options.locator('[data-anyfilter-rules="dirty"]').count()) === 0, 'category saved'),
+  'the category and the rule that uses it save together',
+);
+const storedGroups = await options.evaluate(async () => {
+  const settings = (await chrome.storage.local.get('anyfilter.settings'))['anyfilter.settings'];
+  const benchmarks = settings.ruleGroups.find((group) => group.name === 'Benchmarks');
+  return {
+    ids: settings.ruleGroups.map((group) => group.id),
+    benchmarks: benchmarks?.id ?? null,
+    customGroup: settings.rules.find((rule) => rule.source === 'custom')?.group ?? null,
+    baitGroup: settings.rules.find((rule) => rule.id === 'bait')?.group ?? null,
+  };
+});
+check(
+  storedGroups.benchmarks !== null && storedGroups.customGroup === storedGroups.benchmarks && storedGroups.baitGroup === 'engagement' && storedGroups.ids.length === 5,
+  'the stored settings carry the new category and each rule\'s category',
+);
+await new Promise((resolve) => setTimeout(resolve, 800));
+check(jevCalls.length === callsBeforeRegroup, 'moving a rule to another category asks the model nothing');
+await options.reload();
+await options.waitForLoadState();
+check(
+  await waitFor(async () => (await options.locator(`[data-anyfilter-section-group="${storedGroups.benchmarks}"] [data-rule-choice^="custom:"]`).count()) === 1, 'custom rule under its category'),
+  'after a reload the rule is still listed under its category',
+);
+await options.locator('[data-anyfilter-groups="toggle"]').click();
+await options.getByRole('button', { name: 'Delete Benchmarks' }).click();
+check(
+  (await options.locator(`[data-anyfilter-section-group="${storedGroups.benchmarks}"]`).count()) === 0 &&
+    (await options.locator('[data-anyfilter-section-group=""] [data-rule-choice^="custom:"]').count()) === 1,
+  'deleting a category sends its rules to uncategorised in the draft',
+);
+await options.getByRole('button', { name: 'Save and apply' }).click();
+check(
+  await waitFor(async () => (await options.locator('[data-anyfilter-rules="dirty"]').count()) === 0, 'deletion saved'),
+  'the deletion saves',
+);
+check(
+  await options.evaluate(async () => {
+    const settings = (await chrome.storage.local.get('anyfilter.settings'))['anyfilter.settings'];
+    return settings.ruleGroups.length === 4 && settings.rules.find((rule) => rule.source === 'custom').group === undefined;
+  }),
+  'a deleted category is gone for good and its rule is uncategorised',
 );
 
 await options.screenshot({ path: path.join(ROOT, 'tmp', 'settings.png'), fullPage: true });
@@ -1195,13 +1362,17 @@ check(
   'a TypeSafe key is stored without changing the production provider',
 );
 
-await panel.locator('[data-anyfilter-nav="verification"]').click();
+await openVerifyTab('single');
 const verification = panel.locator('[data-anyfilter-verification="section"]');
 check(
   await waitFor(async () => (await verification.count()) === 1, 'verification section'),
   'verification navigation opens manual verification in the side panel',
 );
-check(await panel.locator('[data-anyfilter-capture="section"]').isVisible(), 'capture and verification share one view');
+check(
+  (await panel.locator('[data-anyfilter-capture="section"]').isVisible()) === false &&
+    (await panel.locator('[data-anyfilter-verify="strip"] [data-anyfilter-strip="capture"]').isVisible()),
+  'the verification view shows capture only as a status line: its controls live in settings',
+);
 
 // The sampler deliberately never re-offers a post it already handled, even after
 // a delete. Fresh page content is therefore added so there is something new to
@@ -1406,6 +1577,7 @@ check(
 // Real evaluation: budget for three isolated labellers, keys that can be set but
 // never read, batch runs with progress, and an export a person saves by hand.
 const evaluation = panel.locator('[data-anyfilter-evaluation="section"]');
+await showVerifyTab('evaluation');
 const OPENAI_KEY = 'sk-e2e-openai-secret';
 const DEEPSEEK_KEY = 'sk-e2e-deepseek-secret';
 const evaluationState = () =>
@@ -1453,17 +1625,46 @@ check(
   await evaluation.locator('[data-anyfilter-evaluation="run-openai"] [data-anyfilter-evaluation="start"]').isDisabled(),
   'a model without a key cannot be run',
 );
-const openaiKey = evaluation.locator('[data-anyfilter-evaluation="key-openai"]');
+check(
+  (await evaluation.locator('[data-anyfilter-evaluation="summary-openai"]').textContent())?.includes('Not set') === true,
+  'the evaluation view summarises a missing OpenAI key',
+);
+check(
+  (await evaluation.locator('input[type="password"]').count()) === 0,
+  'the verification view has no key field: keys are entered in settings',
+);
+// Keys are set in the settings view, through the background, and never shown again.
+await evaluation.locator('[data-anyfilter-evaluation="open-settings"]').click();
+check(
+  await waitFor(async () => await panel.locator('#anyfilter-key').isVisible(), 'settings view from evaluation'),
+  'the evaluation key summary links to the settings view',
+);
+const assistant = panel.locator('[data-anyfilter-assistant="section"]');
+check(
+  (await assistant.locator('[data-anyfilter-tab="openai"]').getAttribute('aria-selected')) === 'true' &&
+    (await waitFor(async () => (await assistant.locator('[data-anyfilter-assistant="in-use"]').count()) === 1, 'assistant in use')),
+  'the rule assistant opens on OpenAI, which is the one in use by default',
+);
+const openaiKey = assistant.locator('[data-anyfilter-evaluation="key-openai"]');
 await openaiKey.locator('input').fill(OPENAI_KEY);
 await openaiKey.getByRole('button', { name: 'Save' }).click();
 check(
   await waitFor(async () => ((await openaiKey.locator('[data-anyfilter-evaluation="key-state"]').textContent()) ?? '').includes('Stored'), 'openai key stored'),
   'a stored key is reported as set',
 );
-await evaluation.locator('[data-anyfilter-evaluation="key-deepseek"] input').fill(DEEPSEEK_KEY);
-await evaluation.locator('[data-anyfilter-evaluation="key-deepseek"]').getByRole('button', { name: 'Save' }).click();
-await waitFor(async () => ((await evaluation.locator('[data-anyfilter-evaluation="key-deepseek"] [data-anyfilter-evaluation="key-state"]').textContent()) ?? '').includes('Stored'), 'deepseek key stored');
-check((await openaiKey.locator('input').inputValue()) === '', 'the key field empties once the key is stored');
+await assistant.locator('[data-anyfilter-tab="deepseek"]').click();
+check(
+  (await assistant.locator('[data-anyfilter-assistant="use"]').count()) === 1 &&
+    (await assistant.locator('[data-anyfilter-assistant="in-use"]').count()) === 0 &&
+    (await panel.evaluate(async () => (await chrome.storage.local.get('anyfilter.settings'))['anyfilter.settings'].assistant ?? 'openai')) === 'openai',
+  'looking at the DeepSeek tab does not change the assistant in use',
+);
+const deepseekKey = assistant.locator('[data-anyfilter-evaluation="key-deepseek"]');
+await deepseekKey.locator('input').fill(DEEPSEEK_KEY);
+await deepseekKey.getByRole('button', { name: 'Save' }).click();
+await waitFor(async () => ((await deepseekKey.locator('[data-anyfilter-evaluation="key-state"]').textContent()) ?? '').includes('Stored'), 'deepseek key stored');
+check((await deepseekKey.locator('input').inputValue()) === '', 'the key field empties once the key is stored');
+await assistant.locator('[data-anyfilter-tab="openai"]').click();
 const panelHtml = await panel.content();
 check(!panelHtml.includes(OPENAI_KEY) && !panelHtml.includes(DEEPSEEK_KEY), 'a stored key never appears in the panel');
 const settingsJson = await storedSettings();
@@ -1475,6 +1676,11 @@ check(
   'something that is not a key is refused',
 );
 await openaiKey.locator('input').fill('');
+await openVerifyTab('evaluation');
+check(
+  await waitFor(async () => (await evaluation.locator('[data-anyfilter-evaluation="summary-openai"]').textContent())?.includes('Stored') === true, 'summary after keys'),
+  'the evaluation view now summarises the stored OpenAI key',
+);
 
 // A run needs an explicit authorization tick.
 const jevRun = evaluation.locator('[data-anyfilter-evaluation="run-jev"]');
@@ -1507,8 +1713,9 @@ check(
 check(typesafeCalls.slice(callsBeforeEvaluation.typesafe).every((call) => call.model === 'jev-1.13.0'), 'every Jev request pins the versioned model');
 check(jevCalls.length === callsBeforeEvaluation.feed, 'an evaluation run never touches the feed gateway');
 
-// The OpenAI labeller is pointed at a relay and its dearer model from the panel.
-const openaiConnection = evaluation.locator('[data-anyfilter-evaluation="connection-openai"]');
+// The OpenAI labeller is pointed at a relay and its dearer model from the settings view.
+await evaluation.locator('[data-anyfilter-evaluation="open-settings"]').click();
+const openaiConnection = assistant.locator('[data-anyfilter-evaluation="connection-openai"]');
 check(
   (await openaiConnection.locator('[data-anyfilter-evaluation="connection-url"]').inputValue()) === 'https://api.openai.com/v1',
   'the OpenAI connection starts at the provider default',
@@ -1526,6 +1733,7 @@ check(
   await waitFor(async () => (await openaiConnection.locator('[data-anyfilter-evaluation="connection-url"]').inputValue()) === 'https://relay.example/v1', 'connection saved'),
   'the saved base URL is shown without its trailing slash',
 );
+await openVerifyTab('evaluation');
 check(
   ((await evaluation.locator('[data-anyfilter-evaluation="run-openai"]').textContent()) ?? '').includes('OpenAI GPT-6 Sol'),
   'the run row names the model now in use',
@@ -1604,18 +1812,25 @@ check(!exportText.includes(OPENAI_KEY) && !exportText.includes(DEEPSEEK_KEY) && 
 // Stopping the budget refuses everything after it. The verification section read its
 // status before the evaluation section turned the budget on, so open the page again.
 await panel.reload();
-await panel.locator('[data-anyfilter-nav="verification"]').click();
+await openVerifyTab('single');
 await verification.locator('[data-anyfilter-verification="disable"]').waitFor();
 await waitFor(async () => await verification.locator('[data-anyfilter-verification="disable"]').isEnabled(), 'verification sees the budget on');
 await verification.locator('[data-anyfilter-verification="disable"]').click();
 await waitFor(async () => ((await verification.locator('[data-anyfilter-verification="status"]').textContent()) ?? '').includes('Verification budget off'), 'budget stopped for evaluation');
 const callsBeforeOffRun = openaiCalls.length + deepseekCalls.length + typesafeCalls.length;
+await showVerifyTab('evaluation');
 check(
   await waitFor(async () => ((await evaluation.locator('[data-anyfilter-evaluation="budget-state"]').textContent()) ?? '').includes('budget is off'), 'section sees budget off', 10_000),
   'the evaluation section notices that the budget was switched off',
 );
 check(await deepseekRun.locator('[data-anyfilter-evaluation="start"]').isDisabled(), 'and no run can be started');
 check(openaiCalls.length + deepseekCalls.length + typesafeCalls.length === callsBeforeOffRun, 'nothing is sent once the budget is off');
+check(
+  ((await panel.locator('[data-anyfilter-verify="strip"] [data-anyfilter-strip="budget"]').textContent()) ?? '').includes('Off') &&
+    (await panel.locator('[data-anyfilter-strip="open-budget"]').count()) === 1,
+  'the status strip shows the budget as off and offers to open it',
+);
+await showVerifyTab('single');
 
 // Deleting the library must also clear anything the panel was showing for the
 // deleted samples: no preview and no verdict may outlive the record it describes.
@@ -1840,7 +2055,7 @@ check(
 
 // Deleting the library while a sample is selected must not leave a stale
 // selection, preview or pager behind.
-await panel.locator('[data-anyfilter-capture="clear"]').click();
+await options.locator('[data-anyfilter-capture="clear"]').click();
 check(
   await waitFor(async () => (await readCapture()).samples.length === 0, 'bulk library deleted'),
   'deleting the large library empties it',
@@ -1859,6 +2074,97 @@ check(
 check(
   (await verification.locator('[data-anyfilter-verification="empty-detail"]').count()) === 1,
   'the detail pane goes back to asking for a sample',
+);
+
+// ---------------------------------------------------------------------------
+// AI drafting of a rule: only offered for a new rule, unavailable without a key,
+// one background request carrying only the requirement and category names, the
+// answer fills the form but is never saved, and an unusable answer changes nothing.
+const settingsRules = () =>
+  worker.evaluate(async () => (await chrome.storage.local.get('anyfilter.settings'))['anyfilter.settings'].rules);
+const openNewRule = async () => {
+  await options.reload();
+  await options.waitForLoadState();
+  await options.getByRole('button', { name: 'New rule' }).click();
+};
+const generator = options.locator('[data-anyfilter-generator="section"]');
+const storedKeys = await worker.evaluate(async () => (await chrome.storage.local.get('anyfilter.evaluation.keys'))['anyfilter.evaluation.keys'] ?? {});
+await worker.evaluate(async () => chrome.storage.local.set({ 'anyfilter.evaluation.keys': { openai: '', deepseek: '' } }));
+await openNewRule();
+check((await generator.count()) === 1, 'a new rule offers AI drafting');
+await generator.locator('[data-anyfilter-generator="requirement"]').fill('hide people selling courses');
+check(
+  await waitFor(async () => (await generator.locator('[data-anyfilter-generator="no-key"]').count()) === 1, 'no key hint'),
+  'without a key the generator points to the rule helper settings',
+);
+check(await generator.locator('[data-anyfilter-generator="generate"]').isDisabled(), 'and cannot be started');
+check(draftCalls.length === 0, 'nothing is sent without a key');
+await worker.evaluate(async (keys) => chrome.storage.local.set({ 'anyfilter.evaluation.keys': keys }), storedKeys);
+await openNewRule();
+check((await options.locator('[data-anyfilter-rule^="custom:"]').count()) === 1, 'a new rule is open again');
+check(
+  (await options.locator('[data-anyfilter-rule="politics"]').count()) === 0 &&
+    (await generator.count()) === 1,
+  'the generator belongs to the new rule',
+);
+const draftRule = options.locator('[data-anyfilter-rule^="custom:"]');
+const rulesBeforeDraft = (await settingsRules()).length;
+await generator.locator('[data-anyfilter-generator="requirement"]').fill('hide people selling courses');
+check(
+  await waitFor(async () => !(await generator.locator('[data-anyfilter-generator="generate"]').isDisabled()), 'generate enabled'),
+  'with a key and a requirement the generator can be started',
+);
+await generator.locator('[data-anyfilter-generator="generate"]').click();
+check(
+  await waitFor(async () => (await generator.locator('[data-anyfilter-generator="filled"]').count()) === 1, 'draft filled'),
+  'a generated draft is announced as AI output to be checked',
+);
+check(draftCalls.length === 1, 'one request is made for one click');
+check(
+  (await draftRule.getByRole('textbox', { name: 'Rule name' }).inputValue()) === 'Course sellers' &&
+    (await draftRule.getByRole('textbox', { name: 'Hide when' }).inputValue()).startsWith('Is this post mainly selling') &&
+    (await draftRule.getByLabel('Category').evaluate((select) => select.selectedOptions[0]?.textContent ?? '')) === 'Marketing',
+  'the draft fills the name, the condition and an existing category',
+);
+await options.screenshot({ path: path.join(ROOT, 'tmp', 'rule-generator.png'), fullPage: true });
+const draftBody = draftCalls[0];
+check(
+  draftBody.authorization === `Bearer ${OPENAI_KEY}` &&
+    draftBody.url === 'https://relay.example/v1/chat/completions' &&
+    draftBody.body.max_completion_tokens === 1200 &&
+    draftBody.body.reasoning_effort === 'none',
+  'the request uses the assistant connection with a capped answer',
+);
+const sentUser = JSON.parse(draftBody.body.messages[1].content);
+check(
+  sentUser.requirement === 'hide people selling courses' &&
+    sentUser.existingCategories.includes('Marketing') &&
+    Object.keys(sentUser).sort().join() === 'existingCategories,requirement' &&
+    !JSON.stringify(draftBody.body).includes(OPENAI_KEY),
+  'only the requirement and the category names are sent, never a key or a post',
+);
+check(
+  (await settingsRules()).length === rulesBeforeDraft &&
+    (await options.locator('[data-anyfilter-rules="dirty"]').count()) === 1,
+  'the draft is unsaved: nothing is stored until Save',
+);
+draftMode = 'invalid';
+await generator.locator('[data-anyfilter-generator="generate"]').click();
+check(
+  await waitFor(async () => (await generator.locator('[data-anyfilter-generator="error"]').count()) === 1, 'invalid draft refused'),
+  'an unusable draft is reported',
+);
+check(
+  (await draftRule.getByRole('textbox', { name: 'Rule name' }).inputValue()) === 'Course sellers' &&
+    draftCalls.length === 2,
+  'and leaves the form as it was, after exactly one more request',
+);
+draftMode = 'good';
+await options.getByRole('button', { name: 'Cancel' }).click();
+check(
+  (await options.locator('[data-anyfilter-rule^="custom:"]').count()) === 0 &&
+    (await settingsRules()).length === rulesBeforeDraft,
+  'cancelling throws the draft away',
 );
 
 await context.close();

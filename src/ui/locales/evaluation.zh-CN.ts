@@ -17,10 +17,9 @@ export const evaluationZh: Record<keyof typeof evaluationEn, string> = {
   'evaluation.budget.note':
     '上限是按 {checked} 查到的价格做的本地估算，不是服务商强制的限额。可能已经计费的请求会保留预留金额，也不会再次发送。',
 
-  'evaluation.keys.heading': '密钥',
-  'evaluation.keys.jev': 'Jev 使用设置里的 TypeSafe 密钥。',
-  'evaluation.keys.jevSet': 'TypeSafe 密钥：已设置',
-  'evaluation.keys.jevMissing': 'TypeSafe 密钥：未设置',
+  'evaluation.keys.goSettings': '去设置',
+  'evaluation.keys.summaryNote':
+    '密钥和连接在「设置」的「模型与密钥」里配置。这里只显示是否已设置，密钥无法被读回。',
   'evaluation.keys.openai': 'OpenAI 密钥',
   'evaluation.keys.deepseek': 'DeepSeek 密钥',
   'evaluation.keys.placeholder': '粘贴密钥',
@@ -33,10 +32,13 @@ export const evaluationZh: Record<keyof typeof evaluationEn, string> = {
   'evaluation.connection.baseUrl': '接口地址',
   'evaluation.connection.save': '使用',
   'evaluation.connection.invalid': '接口地址必须是 https 地址，且不含账号或查询参数。',
-  'evaluation.keys.note': '密钥只保存在这个浏览器配置里，只用于你在这里发起的请求，也无法被读回。',
+  'evaluation.keys.note': '密钥只保存在这个浏览器配置里，只用于你亲自发起的请求（评估运行与规则起草），也无法被读回。',
 
   'evaluation.run.heading': '运行',
   'evaluation.run.authorize': '我授权在预算上限内，用我的密钥把已存帖子发给 {label}。这可能产生费用，且无法撤回。',
+  'evaluation.run.authorizeNote': '在某一行勾选「授权」，即允许在预算上限内，用你的密钥把已存帖子发给该模型。这可能产生费用，且无法撤回。',
+  'evaluation.run.authorizeShort': '授权',
+  'evaluation.run.keyState': '密钥：{state}',
   'evaluation.run.start': '运行 {label}',
   'evaluation.run.stop': '停止',
   'evaluation.run.refused': '没有开始：{detail}',

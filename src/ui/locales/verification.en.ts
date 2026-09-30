@@ -205,5 +205,25 @@ export const verificationEn = {
   'verification.message.stopped':
     'Verification budget stopped. No new request can be sent until you switch it on again. A request that was already sent may still be charged, and its reservation stays held as unknown; stopping does not refund it.',
 
+  // Verification view: status strip and the three tabs.
+  'verification.view.tabs': 'Verification views',
+  'verification.tab.evaluation': 'Evaluation runs',
+  'verification.tab.single': 'Single sample',
+  'verification.tab.review': 'Review labels',
+  'verification.strip.label': 'Verification status',
+  'verification.strip.samples': 'Stored samples',
+  'verification.strip.rules': 'Semantic rules on',
+  'verification.strip.requests': 'Max requests per model',
+  'verification.strip.reviews': 'Review labels',
+  'verification.strip.capture': 'Capture',
+  'verification.strip.budget': 'Budget',
+  'verification.strip.captureOff': 'Off',
+  'verification.strip.capturePaused': 'Paused',
+  'verification.strip.captureActive': 'On',
+  'verification.strip.budgetOn': 'On',
+  'verification.strip.budgetOff': 'Off',
+  'verification.strip.goSettings': 'Go to settings',
+  'verification.strip.openBudget': 'Open budget',
+
   ...captureEn,
 } as const;

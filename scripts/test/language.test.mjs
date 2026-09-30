@@ -39,7 +39,9 @@ const files = [
   'ui/sidepanel/PostCard.tsx', 'ui/sidepanel/SettingsSection.tsx',
   'ui/sidepanel/RuleManager.tsx', 'ui/sidepanel/RuleEditor.tsx',
   'ui/sidepanel/RulePreview.tsx', 'ui/sidepanel/VerificationSection.tsx',
-  'ui/sidepanel/CaptureSection.tsx', 'ui/sidepanel/ReviewSwitch.tsx', 'ui/sidepanel/ReviewDataSection.tsx', 'ui/sidepanel/EvaluationSection.tsx', 'ui/sidepanel/PageSection.tsx', 'ui/sidepanel/SitesSection.tsx',
+  'ui/sidepanel/CaptureSection.tsx', 'ui/sidepanel/ReviewSwitch.tsx', 'ui/sidepanel/ReviewDataSection.tsx', 'ui/sidepanel/EvaluationSection.tsx', 'ui/sidepanel/EvaluationBudget.tsx', 'ui/sidepanel/EvaluationRunTable.tsx', 'ui/sidepanel/EvaluationExport.tsx', 'ui/sidepanel/VerificationView.tsx', 'ui/sidepanel/StatusBanner.tsx',
+  'ui/sidepanel/ProviderTabs.tsx', 'ui/sidepanel/AssistantTabs.tsx', 'ui/sidepanel/ConnectionFields.tsx', 'ui/sidepanel/TabStrip.tsx',
+  'ui/sidepanel/RuleGenerator.tsx', 'ui/sidepanel/RuleList.tsx', 'ui/sidepanel/RuleDetail.tsx', 'ui/sidepanel/GroupManager.tsx', 'ui/sidepanel/PageSection.tsx', 'ui/sidepanel/SitesSection.tsx',
   'infrastructure/review-panel.ts',
   'infrastructure/review-layer.ts', 'infrastructure/review-toolbar.ts', 'entrypoints/options/main.tsx',
 ];

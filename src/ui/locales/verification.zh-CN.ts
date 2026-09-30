@@ -184,5 +184,25 @@ export const verificationZh = {
   'verification.message.stopped':
     '验证预算已停止。在你重新开启之前，不会发送任何新请求。已发送的请求仍可能被扣费，其预留会作为未知保持冻结；停止不会退回它。',
 
+  // 验证页：状态条与三个 Tab。
+  'verification.view.tabs': '验证页视图',
+  'verification.tab.evaluation': '评估运行',
+  'verification.tab.single': '单条验证',
+  'verification.tab.review': '复核标注',
+  'verification.strip.label': '验证状态',
+  'verification.strip.samples': '已存样本',
+  'verification.strip.rules': '已启用语义规则',
+  'verification.strip.requests': '每个模型最多请求数',
+  'verification.strip.reviews': '复核标注',
+  'verification.strip.capture': '采集',
+  'verification.strip.budget': '预算',
+  'verification.strip.captureOff': '未开启',
+  'verification.strip.capturePaused': '已暂停',
+  'verification.strip.captureActive': '采集中',
+  'verification.strip.budgetOn': '已打开',
+  'verification.strip.budgetOff': '未打开',
+  'verification.strip.goSettings': '去设置',
+  'verification.strip.openBudget': '打开预算',
+
   ...captureZh,
 } as const;

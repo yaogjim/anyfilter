@@ -24,10 +24,9 @@ export const evaluationEn = {
   'evaluation.budget.note':
     'The cap is a local estimate at the prices read on {checked}, not a limit the provider enforces. A request that may already have been charged keeps its reservation and is never sent again.',
 
-  'evaluation.keys.heading': 'Keys',
-  'evaluation.keys.jev': 'Jev uses the TypeSafe key from Settings.',
-  'evaluation.keys.jevSet': 'TypeSafe key: set',
-  'evaluation.keys.jevMissing': 'TypeSafe key: not set',
+  'evaluation.keys.goSettings': 'Go to settings',
+  'evaluation.keys.summaryNote':
+    'Keys and connections are set in Settings under Models & keys. This page only shows whether they are set; a key can never be read back.',
   'evaluation.keys.openai': 'OpenAI key',
   'evaluation.keys.deepseek': 'DeepSeek key',
   'evaluation.keys.placeholder': 'Paste a key',
@@ -41,11 +40,15 @@ export const evaluationEn = {
   'evaluation.connection.save': 'Use',
   'evaluation.connection.invalid': 'The base URL must be an https address without credentials or query.',
   'evaluation.keys.note':
-    'Keys stay in this browser profile. They are used only for the requests you start here and can never be read back.',
+    'Keys stay in this browser profile. They are used only for requests you start yourself (evaluation runs and rule drafting) and can never be read back.',
 
   'evaluation.run.heading': 'Run',
   'evaluation.run.authorize':
     'I authorize sending the stored posts to {label} with my key, within its cap. This may be charged and cannot be recalled.',
+  'evaluation.run.authorizeNote':
+    'Tick "Authorize" on a row to allow sending the stored posts to that model with your key, within its cap. This may be charged and cannot be recalled.',
+  'evaluation.run.authorizeShort': 'Authorize',
+  'evaluation.run.keyState': 'Key: {state}',
   'evaluation.run.start': 'Run {label}',
   'evaluation.run.stop': 'Stop',
   'evaluation.run.refused': 'Not started: {detail}',
