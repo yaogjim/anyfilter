@@ -94,7 +94,19 @@ The exported results file **contains the saved post text**; treat it as private
 and save it only where you would keep the posts themselves. Nothing runs in the
 background on a schedule.
 
-Outside that section nothing is sent to OpenAI or DeepSeek. What the
+**Rule assistant (opt-in, only when you click).** In Settings, *Models & keys* has a
+*Rule assistant* card. It uses the same OpenAI or DeepSeek key and connection as the
+Verify page; you choose which one drafts rules. In a new rule, *Draft with AI* (*Generate draft*) sends
+one request when you press the button, with **only the description you typed and the
+names of your rule categories**. No post, no other rule and no saved sample is sent.
+The reply fills the form as an unsaved draft for you to read and change; nothing is
+saved until you press *Save and apply*. It is a single request with a capped answer
+and no retry, does not use the verification budget, and may be charged by that
+provider. The key is read only by the extension's background and is never shown
+again. If you point the connection at another host, that host receives your key and
+the description.
+
+Outside the rule assistant and the evaluation section nothing is sent to OpenAI or DeepSeek. What the
 providers do with requests is covered by their own policies: [Vercel](https://vercel.com/legal/privacy-policy),
 [TypeSafe](https://typesafe.ai), [OpenAI](https://openai.com/policies/privacy-policy), [DeepSeek](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html).
 
