@@ -4,7 +4,7 @@
 
 Chrome extension that uses [Jev](https://typesafe.ai) to hide anything you don't want to see on any site, from ads and spam to whatever you describe in a sentence. X first, Hacker News and any web page too.
 
-https://github.com/user-attachments/assets/4cfa42c1-00e8-46d5-ba18-07cb912e9dbd
+https://github.com/user-attachments/assets/2e81b289-9783-4fb4-8f07-9f8c307b0fba
 
 <p>
   <img src="screenshots/en/panel-home.png" width="300" alt="Side panel home: counters and hidden posts grouped by rule or category">

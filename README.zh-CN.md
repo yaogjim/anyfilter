@@ -4,7 +4,7 @@
 
 基于 [Jev](https://typesafe.ai) 的 Chrome 扩展：在任意网站上隐藏你不想看的内容，从广告、垃圾信息到你用一句话描述的任何内容。首先支持 X，也支持 Hacker News 和任意网页。
 
-https://github.com/user-attachments/assets/4cfa42c1-00e8-46d5-ba18-07cb912e9dbd
+https://github.com/user-attachments/assets/2e81b289-9783-4fb4-8f07-9f8c307b0fba
 
 <p>
   <img src="screenshots/zh-CN/panel-home.png" width="300" alt="侧边栏主页：计数与按规则或分类分组的已隐藏帖子">
