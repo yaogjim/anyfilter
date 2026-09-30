@@ -168,6 +168,14 @@ check(
 check((await panel.locator('[data-anyfilter-site="hn"]').getAttribute('data-anyfilter-site-on')) === 'true', 'and shows it as on, because the browser grants it');
 check((await panel.locator('[data-anyfilter-sites="toggle"]').getAttribute('aria-pressed')) === 'true', 'the switch agrees');
 
+// The card is also on the "This page" view, where a person lands looking for it.
+await panel.locator('[data-anyfilter-nav="page"]').click();
+check(
+  await waitFor(() => panel.locator('[data-anyfilter-site="hn"]').count().then((n) => n === 1), 'sites card on page view'),
+  'the "This page" view shows the same Hacker News switch',
+);
+await panel.locator('[data-anyfilter-nav="home"]').click();
+
 check(
   await waitFor(async () => (await panel.getByText('America.gov (america.gov)').count()) === 0 && (await panel.getByText(/Politics/i).count()) > 0, 'politics group'),
   'the hidden list has a politics group',

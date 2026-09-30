@@ -75,6 +75,9 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
       {view === 'page' && (
         <>
           <PageSection gateway={gateway} />
+          {/* Also here, not only on the overview: this is the view a person is on when
+              they open the panel on a Hacker News tab and look for the switch. */}
+          <SitesSection gateway={gateway} />
           <AutoSection gateway={gateway} />
         </>
       )}
