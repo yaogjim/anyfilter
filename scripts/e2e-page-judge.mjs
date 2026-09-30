@@ -249,7 +249,7 @@ try {
   const shown = await panel.eval(`document.querySelector('[data-anyfilter-page-verdict]').innerText`);
   check(/45%/.test(shown) && /40%/.test(shown), 'the badge shows the probability and the threshold');
 
-  // --- a long page: truncated, clickbait miss is "undetermined" -----------------
+  // --- a long page: truncated; the title-style rules still answer -------------------
   await page.goto(`${ORIGIN}/blog/very-long`);
   const longTab = await tabTargetFor(`${ORIGIN}/blog/very-long`);
   await browserCdp.send('Extensions.triggerAction', { id: extensionId, targetId: longTab.targetId });
@@ -261,7 +261,7 @@ try {
   const sent = modelRequests[before]?.body.state;
   check(sent?.truncated === true && sent.word_count > 2000, 'a long page is marked truncated with its full word count');
   check(String(sent?.text).split(/\s+/).length <= 2000, 'no more than 2000 words leave the page');
-  check((await panel.eval(`document.querySelector('[data-anyfilter-page-rule="clickbait"]')?.dataset.anyfilterPageStatus`)) === 'undetermined', 'a truncated page never turns a clickbait miss into "no match"');
+  check((await panel.eval(`document.querySelector('[data-anyfilter-page-rule="clickbait"]')?.dataset.anyfilterPageStatus`)) === 'no-match', 'clickbait is about the title, so a truncated page still gets a plain answer');
 
   // --- pages the gate refuses cost nothing --------------------------------------
   for (const route of ['/account/login', '/blog/tiny']) {

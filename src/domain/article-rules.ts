@@ -10,8 +10,9 @@ import type { Scores } from './verdict';
 /**
  * Article rules, version 1: two rules, each with its own threshold.
  *
- * The question texts are the ones that were tried offline against 27 real
- * low-quality pages and 21 more unseen pages (docs/article-rules.md 5.1, 5.2).
+ * The marketing question was tried offline against 27 real low-quality pages and
+ * 21 more unseen pages (docs/article-rules.md 5.1, 5.2). The clickbait question was
+ * replaced after it missed 92% of human-labelled clickbait (5.3).
  * They are kept word for word: a reworded question is a different question, and
  * the thresholds below were chosen for these.
  */
@@ -60,11 +61,14 @@ export const ARTICLE_RULES: readonly ArticleRule[] = [
   {
     id: 'clickbait',
     label: 'clickbait',
-    // 0.5: recall is barely validated, only one confirmed positive. See 5.2.
+    // 0.5: on 220 human-labelled headlines (Webis Clickbait 2017) this wording gave
+    // 35-40% recall at 92-96% precision, and about 3% of ordinary headlines above it.
+    // See article-rules.md 5.3.
     threshold: 0.5,
-    needsFullText: true,
+    // The question is about the title's style, so the rest of the text is not needed.
+    needsFullText: false,
     question:
-      'Does the title trade on suspense, exaggeration, emotion or unfinished information to earn a click, while the body does not deliver, or delivers much less than the title says? Answer no if: the title is attractive but the body delivers; the title is rhetorical or humorous over real content; the title is a forceful opinion that the body argues for.' +
+      "Is the title written in a clickbait style: it withholds the key information, teases with a curiosity gap or suspense, exaggerates, or uses an emotional hook or direct address to make the reader click, instead of plainly stating what the article says? Answer no if the title plainly says what the article is about, even if it is attractive, rhetorical or humorous." +
       IGNORE,
   },
 ];

@@ -158,21 +158,29 @@ test('only the highest matching rule is the top one, all outcomes stay available
   );
 });
 
+const FULL_TEXT_RULE = { id: 'clickbait', label: 'x', question: 'q', threshold: 0.5, needsFullText: true };
+
+test('no shipped rule needs the whole text: a long page or a paywall does not blur a miss', () => {
+  assert.ok(ARTICLE_RULES.every((rule) => rule.needsFullText === false));
+  const long = judgeArticle(article({ units: ARTICLE_TEXT_CAP_UNITS + 1 }), { readable: 0.9, marketing: 0.05, clickbait: 0.1 });
+  assert.equal(long.kind, 'judged');
+  assert.deepEqual(long.outcomes.map((o) => o.status), ['no-match', 'no-match']);
+});
+
 test('a truncated page: a hit stands, a miss on a full-text rule is undetermined, not no-match', () => {
   const long = article({ units: ARTICLE_TEXT_CAP_UNITS + 1 });
-  const missed = judgeArticle(long, { readable: 0.9, marketing: 0.05, clickbait: 0.1 });
+  const rules = [FULL_TEXT_RULE];
+  const missed = judgeArticle(long, { readable: 0.9, clickbait: 0.1 }, rules);
   assert.equal(missed.kind, 'judged');
-  const marketing = missed.outcomes.find((o) => o.rule === 'marketing');
   const clickbait = missed.outcomes.find((o) => o.rule === 'clickbait');
-  assert.equal(marketing?.status, 'no-match');
   assert.equal(clickbait?.status, 'undetermined');
   assert.equal(clickbait?.reason, 'truncated');
-  const hit = judgeArticle(long, { readable: 0.9, marketing: 0.05, clickbait: 0.8 });
+  const hit = judgeArticle(long, { readable: 0.9, clickbait: 0.8 }, rules);
   assert.equal(hit.top?.rule, 'clickbait');
 });
 
 test('a paywall preview is never read as a clean miss on a full-text rule', () => {
-  const paywalled = judgeArticle(article({ paywallDetected: true }), { readable: 0.9, marketing: 0.05, clickbait: 0.1 });
+  const paywalled = judgeArticle(article({ paywallDetected: true }), { readable: 0.9, clickbait: 0.1 }, [FULL_TEXT_RULE]);
   assert.equal(paywalled.kind, 'judged');
   const clickbait = paywalled.outcomes.find((o) => o.rule === 'clickbait');
   assert.equal(clickbait?.status, 'undetermined');
