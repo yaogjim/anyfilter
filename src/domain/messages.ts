@@ -11,6 +11,8 @@ import { isVerificationDetailRequest, isVerificationRunRequest } from './evaluat
 import { isPost, type Post, type PostKind } from './post';
 import { isReviewSaveInput, type ReviewSaveInput } from './review-record';
 import { isPreviewInput, isRule, type PreviewInput, type Rule } from './rule';
+import { isGenerateRuleInput, type GenerateRuleInput } from './rule-draft';
+import { isRuleGroups, type RuleGroup } from './rule-group';
 import { isReason, isScores, type Reason, type Scores } from './verdict';
 
 export type RuntimeMessage =
@@ -19,8 +21,12 @@ export type RuntimeMessage =
   | { type: 'override'; postId: string; shown: boolean }
   | { type: 'clear-hidden'; kind: PostKind }
   | { type: 'clear-data' }
-  | { type: 'save-rules'; rules: Rule[]; expectedRevision: number }
+  | { type: 'save-rules'; rules: Rule[]; expectedRevision: number; groups: RuleGroup[] }
   | { type: 'preview-rule'; input: PreviewInput }
+  /** Extension page to background: draft one rule from a requirement with the
+   * assistant model. Sent only when the person asks; carries the requirement and
+   * category names, never a key or a post. */
+  | { type: 'generate-rule'; input: GenerateRuleInput }
   /** Content script to background: already-loaded posts it read from the page.
    * `epoch` is the run state version the content script observed, so a batch that
    * started before a pause or a delete is refused rather than written. */
@@ -143,10 +149,13 @@ export function isRuntimeMessage(value: unknown): value is RuntimeMessage {
       return (
         Array.isArray(record.rules) &&
         record.rules.every(isRule) &&
-        typeof record.expectedRevision === 'number'
+        typeof record.expectedRevision === 'number' &&
+        isRuleGroups(record.groups)
       );
     case 'preview-rule':
       return isPreviewInput(record.input);
+    case 'generate-rule':
+      return isGenerateRuleInput(record.input);
     case 'capture-submit':
       return (
         typeof record.epoch === 'number' &&

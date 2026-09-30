@@ -22,6 +22,8 @@ import type {
 import type { PanelState } from '../../domain/panel-state';
 import type { PostKind } from '../../domain/post';
 import type { PreviewInput, PreviewResult, Rule, SaveRulesResult } from '../../domain/rule';
+import type { GenerateRuleInput, GenerateRuleResult } from '../../domain/rule-draft';
+import type { RuleGroup } from '../../domain/rule-group';
 import type { Settings } from '../../domain/settings';
 
 /** The tab the person is looking at. `url` is only known when the browser lets an
@@ -62,8 +64,11 @@ export interface PanelGateway {
   onSettingsChanged(listener: (settings: Settings) => void): () => void;
   loadPanelState(): Promise<PanelState>;
   onPanelStateChanged(listener: (state: PanelState) => void): () => void;
-  saveRules(rules: Rule[], expectedRevision: number): Promise<SaveRulesResult>;
+  saveRules(rules: Rule[], expectedRevision: number, groups: RuleGroup[]): Promise<SaveRulesResult>;
   previewRule(input: PreviewInput): Promise<PreviewResult>;
+  /** Drafts one rule from a requirement through the background, which reads the
+   * assistant key. Only fills the editor; never saves. */
+  generateRule(input: GenerateRuleInput): Promise<GenerateRuleResult>;
   override(postId: string, shown: boolean): Promise<void>;
   clearData(): Promise<void>;
   clearHidden(kind: PostKind): Promise<void>;

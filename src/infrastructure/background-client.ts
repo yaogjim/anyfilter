@@ -19,6 +19,8 @@ import {
   type Rule,
   type SaveRulesResult,
 } from '../domain/rule';
+import { isGenerateRuleResult, type GenerateRuleInput, type GenerateRuleResult } from '../domain/rule-draft';
+import type { RuleGroup } from '../domain/rule-group';
 import {
   isVerificationDetailResult,
   isVerificationEnableResult,
@@ -133,9 +135,9 @@ export class BackgroundClient implements ClassifierPort, VerdictSink {
     await send({ type: 'clear-hidden', kind });
   }
 
-  async saveRules(rules: Rule[], expectedRevision: number): Promise<SaveRulesResult> {
+  async saveRules(rules: Rule[], expectedRevision: number, groups: RuleGroup[]): Promise<SaveRulesResult> {
     try {
-      const response = await send({ type: 'save-rules', rules, expectedRevision });
+      const response = await send({ type: 'save-rules', rules, expectedRevision, groups });
       return isSaveRulesResult(response)
         ? response
         : { ok: false, error: 'invalid', detail: 'malformed response from background' };
@@ -143,6 +145,21 @@ export class BackgroundClient implements ClassifierPort, VerdictSink {
       return {
         ok: false,
         error: 'invalid',
+        detail: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async generateRule(input: GenerateRuleInput): Promise<GenerateRuleResult> {
+    try {
+      const response = await send({ type: 'generate-rule', input });
+      return isGenerateRuleResult(response)
+        ? response
+        : { ok: false, error: 'bad-response', detail: 'malformed response from background' };
+    } catch (error) {
+      return {
+        ok: false,
+        error: 'network',
         detail: error instanceof Error ? error.message : String(error),
       };
     }

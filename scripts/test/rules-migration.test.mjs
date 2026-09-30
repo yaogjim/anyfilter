@@ -56,6 +56,15 @@ test('a fresh install enables all ten built-in rules', () => {
   assert.equal(enabledCategories(settings).size, 10);
 });
 
+test('the rule assistant defaults to openai and ignores anything that is not a machine connection', () => {
+  assert.equal(normalizeSettings(undefined).assistant, 'openai');
+  assert.equal(normalizeSettings(LEGACY).assistant, 'openai');
+  assert.equal(normalizeSettings({ assistant: 'deepseek' }).assistant, 'deepseek');
+  for (const bad of ['jev', 'vercel', '', 7, null, {}]) {
+    assert.equal(normalizeSettings({ assistant: bad }).assistant, 'openai');
+  }
+});
+
 test('legacy disabled/custom/threshold/keys migrate without changing meaning', () => {
   const settings = normalizeSettings(LEGACY);
   const byId = new Map(settings.rules.map((rule) => [rule.id, rule]));

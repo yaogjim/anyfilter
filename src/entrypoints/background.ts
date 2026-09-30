@@ -55,6 +55,8 @@ import {
 } from '../infrastructure/review-store';
 import { updatePanelState } from '../infrastructure/panel-state-store';
 import { previewRules } from '../infrastructure/rule-preview';
+import { generateRuleDraft } from '../infrastructure/rule-generator';
+import type { GenerateRuleResult } from '../domain/rule-draft';
 import { forgetScores } from '../infrastructure/score-cache';
 import { loadSettings, onSettingsChanged, saveRules } from '../infrastructure/settings-store';
 import type { JudgePageResult } from '../domain/article-judgement';
@@ -123,9 +125,22 @@ async function handle(message: RuntimeMessage, sender: chrome.runtime.MessageSen
       await broadcastToX(message);
       return undefined;
     case 'save-rules':
-      return saveRules(message.rules, message.expectedRevision);
+      return saveRules(message.rules, message.expectedRevision, message.groups);
     case 'preview-rule':
       return previewRules(message.input);
+    case 'generate-rule': {
+      // Spends the person's own key, so only one of our own pages may ask.
+      const kind = senderKind(sender, chrome.runtime.id);
+      if (kind !== 'extension-page') {
+        console.warn(`[AnyFilter] refused generate-rule from a ${kind} sender`);
+        return {
+          ok: false,
+          error: 'invalid',
+          detail: 'rule drafting may only be requested from an extension page',
+        } satisfies GenerateRuleResult;
+      }
+      return generateRuleDraft(message.input);
+    }
     case 'capture-submit': {
       // Only our own content script, running in an X tab, may submit. The page
       // URL is read from the sender and never from the message, so a compromised

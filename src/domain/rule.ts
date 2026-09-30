@@ -1,4 +1,6 @@
 import { BUILT_IN_CATEGORIES } from './category';
+import { BUILT_IN_GROUP, isGroupId } from './rule-group';
+import { hasUnsafeChars, ID_PATTERN, RESERVED_IDS } from './safe-text';
 import type { Settings } from './settings';
 
 export type RuleSource = 'builtin' | 'custom';
@@ -22,6 +24,9 @@ export interface Rule {
   examplesNo: string[];
   scope: RuleScope;
   threshold?: number;
+  /** The category this rule is listed under. Absent means uncategorised. Purely
+   * organisational: it never reaches a compiled question or its fingerprint. */
+  group?: string;
 }
 
 export const MAX_RULES = 100;
@@ -31,28 +36,12 @@ export const MAX_EXCLUDE_LENGTH = 1000;
 export const MAX_EXAMPLE_LENGTH = 200;
 export const MAX_EXAMPLES_PER_SIDE = 5;
 
-/** Ids become object keys in the compiled question map, so they are restricted to
- * a conservative identifier shape. */
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
-const RESERVED_IDS: readonly string[] = ['__proto__', 'prototype', 'constructor'];
-
-/** C0/C1 controls plus zero-width and bidi-override characters. These can hide or
- * reorder text inside a compiled prompt, so they are rejected outright. */
-const INVISIBLE_CHARS = /[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/;
-
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 function stringArray(value: unknown): string[] | null {
   return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : null;
-}
-
-/** True when `value` carries a control or invisible character. Multi-line fields
- * may keep newlines and tabs; everything else may not. */
-function hasUnsafeChars(value: string, allowNewlines = false): boolean {
-  const probe = allowNewlines ? value.replace(/[\n\t]/g, '') : value;
-  return INVISIBLE_CHARS.test(probe);
 }
 
 export function hashString(value: string): string {
@@ -65,20 +54,26 @@ export function hashString(value: string): string {
 }
 
 /** The ten built-in rules, all enabled, carrying the default condition,
- * `exclude` and examples maintained in `category.ts`. */
+ * `exclude` and examples maintained in `category.ts`, each in its default
+ * category. */
 export function builtInRules(): Rule[] {
-  return BUILT_IN_CATEGORIES.map((category) => ({
-    id: category.id,
-    label: category.label,
-    source: 'builtin' as const,
-    kind: category.rule === 'promoted' ? 'local' : 'semantic',
-    enabled: true,
-    include: category.question ?? '',
-    exclude: category.exclude ?? '',
-    examplesYes: [...(category.examplesYes ?? [])],
-    examplesNo: [...(category.examplesNo ?? [])],
-    scope: 'all' as const,
-  }));
+  return BUILT_IN_CATEGORIES.map((category) => {
+    const rule: Rule = {
+      id: category.id,
+      label: category.label,
+      source: 'builtin',
+      kind: category.rule === 'promoted' ? 'local' : 'semantic',
+      enabled: true,
+      include: category.question ?? '',
+      exclude: category.exclude ?? '',
+      examplesYes: [...(category.examplesYes ?? [])],
+      examplesNo: [...(category.examplesNo ?? [])],
+      scope: 'all',
+    };
+    const group = BUILT_IN_GROUP[category.id];
+    if (group !== undefined) rule.group = group;
+    return rule;
+  });
 }
 
 /**
@@ -133,7 +128,11 @@ export function refreshUneditedBuiltIns(stored: readonly Rule[]): Rule[] {
   return stored.map((rule) => {
     const next = defaults.get(rule.id);
     if (!next || !isUneditedLegacyBuiltIn(rule)) return rule;
-    return { ...next, enabled: rule.enabled };
+    // The category is the person's own organisation, not a default to refresh.
+    const refreshed: Rule = { ...next, enabled: rule.enabled };
+    if (rule.group !== undefined) refreshed.group = rule.group;
+    else delete refreshed.group;
+    return refreshed;
   });
 }
 
@@ -264,6 +263,9 @@ export function parseRule(value: unknown): ParsedRule {
   ) {
     return { ok: false, detail: `rule ${id} threshold must be between 0 and 1` };
   }
+  if (record.group !== undefined && !isGroupId(record.group)) {
+    return { ok: false, detail: `rule ${id} category is not a safe identifier` };
+  }
   const rule: Rule = {
     id,
     label,
@@ -277,6 +279,7 @@ export function parseRule(value: unknown): ParsedRule {
     scope: record.scope,
   };
   if (record.threshold !== undefined) rule.threshold = record.threshold as number;
+  if (record.group !== undefined) rule.group = record.group as string;
   return { ok: true, rule };
 }
 
@@ -319,6 +322,7 @@ export function coerceRule(value: unknown): Rule | null {
   if (typeof record.threshold === 'number' && record.threshold > 0 && record.threshold <= 1) {
     rule.threshold = record.threshold;
   }
+  if (isGroupId(record.group)) rule.group = record.group;
   return rule;
 }
 
@@ -334,7 +338,10 @@ export function coerceRules(value: unknown): Rule[] | null {
 
 export type RulesValidation = { ok: true; rules: Rule[] } | { ok: false; detail: string };
 
-export function validateRules(value: unknown): RulesValidation {
+/** `groupIds`, when given, is the set of categories the rules may refer to: a
+ * rule pointing at one that does not exist is rejected, so a save can never
+ * leave a dangling reference behind. */
+export function validateRules(value: unknown, groupIds?: ReadonlySet<string>): RulesValidation {
   if (!Array.isArray(value)) return { ok: false, detail: 'rules must be an array' };
   if (value.length === 0) return { ok: false, detail: 'rules must not be empty' };
   if (value.length > MAX_RULES) return { ok: false, detail: `at most ${MAX_RULES} rules are allowed` };
@@ -344,6 +351,9 @@ export function validateRules(value: unknown): RulesValidation {
   for (const item of value) {
     const parsed = parseRule(item);
     if (!parsed.ok) return { ok: false, detail: parsed.detail };
+    if (groupIds !== undefined && parsed.rule.group !== undefined && !groupIds.has(parsed.rule.group)) {
+      return { ok: false, detail: `rule ${parsed.rule.id} refers to an unknown category: ${parsed.rule.group}` };
+    }
     if (ids.has(parsed.rule.id)) return { ok: false, detail: `duplicate rule id: ${parsed.rule.id}` };
     ids.add(parsed.rule.id);
     const labelKey = parsed.rule.label.toLowerCase();

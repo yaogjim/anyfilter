@@ -3,7 +3,26 @@ import { MAX_LABEL_LENGTH, type Rule } from '../../domain/rule';
 /** Rules are drafts until saved, so equality is used to know whether the board
  * has unsaved edits and whether Save should be enabled. */
 export function rulesEqual(a: readonly Rule[], b: readonly Rule[]): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return a.length === b.length && a.every((rule, i) => ruleKey(rule) === ruleKey(b[i]));
+}
+
+/** One rule in a fixed field order, so equality never depends on the order in
+ * which an edit happened to add a field (a category, a threshold). */
+function ruleKey(rule: Rule): string {
+  return JSON.stringify([
+    rule.id,
+    rule.label,
+    rule.source,
+    rule.kind,
+    rule.enabled,
+    rule.include,
+    rule.exclude,
+    rule.examplesYes,
+    rule.examplesNo,
+    rule.scope,
+    rule.threshold ?? null,
+    rule.group ?? null,
+  ]);
 }
 
 /** Applies a patch to one rule, dropping an optional threshold entirely when the
@@ -17,6 +36,7 @@ export function withRule(
     if (rule.id !== id) return rule;
     const next: Rule = { ...rule, ...patch };
     if ('threshold' in patch && patch.threshold === undefined) delete next.threshold;
+    if ('group' in patch && patch.group === undefined) delete next.group;
     return next;
   });
 }
@@ -42,9 +62,9 @@ function uniqueId(rules: readonly Rule[]): string {
 
 /** A fresh custom semantic rule. `include` is intentionally empty so the editor
  * opens it ready to describe the rule; saving stays blocked until it is filled. */
-export function newCustomRule(rules: readonly Rule[]): Rule {
+export function newCustomRule(rules: readonly Rule[], group?: string): Rule {
   const label = uniqueLabel(rules).slice(0, MAX_LABEL_LENGTH);
-  return {
+  const rule: Rule = {
     id: uniqueId(rules),
     label,
     source: 'custom',
@@ -56,4 +76,6 @@ export function newCustomRule(rules: readonly Rule[]): Rule {
     examplesNo: [],
     scope: 'all',
   };
+  if (group !== undefined) rule.group = group;
+  return rule;
 }

@@ -47,11 +47,17 @@ async function main() {
     if (!stored || !Array.isArray(stored.rules)) throw new Error('the extension has no stored rules yet');
     mkdirSync(path.join(ROOT, 'tmp', 'rule-backups'), { recursive: true });
     const backup = path.join(ROOT, 'tmp', 'rule-backups', `rules-${new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15)}.json`);
-    writeFileSync(backup, JSON.stringify({ revision: stored.revision, rules: stored.rules }, null, 2));
+    writeFileSync(backup, JSON.stringify({ revision: stored.revision, rules: stored.rules, ruleGroups: stored.ruleGroups }, null, 2));
 
+    // Rules and categories are saved together. A record from before categories
+    // existed has none stored, which the extension reads as its default four.
+    const DEFAULT_GROUPS = ['marketing', 'engagement', 'harmful', 'politics'].map((id) => ({ id, name: '' }));
+    let groups = Array.isArray(stored.ruleGroups) ? stored.ruleGroups : DEFAULT_GROUPS;
     let next;
     if (rollbackFile) {
-      next = JSON.parse(readFileSync(path.resolve(rollbackFile), 'utf8')).rules;
+      const saved = JSON.parse(readFileSync(path.resolve(rollbackFile), 'utf8'));
+      next = saved.rules;
+      if (Array.isArray(saved.ruleGroups)) groups = saved.ruleGroups;
     } else {
       const pack = core.parseRulePack(readFileSync(path.resolve(packFile), 'utf8'));
       const byId = new Map(pack.rules.map((rule) => [rule.id, rule]));
@@ -59,8 +65,9 @@ async function main() {
       for (const rule of pack.rules) if (!stored.rules.some((existing) => existing.id === rule.id)) next.push(rule);
     }
     const result = await page.evaluate(
-      ({ rules, revision }) => chrome.runtime.sendMessage({ type: 'save-rules', rules, expectedRevision: revision }),
-      { rules: next, revision: stored.revision },
+      ({ rules, revision, groups }) =>
+        chrome.runtime.sendMessage({ type: 'save-rules', rules, expectedRevision: revision, groups }),
+      { rules: next, revision: stored.revision, groups },
     );
     if (!result?.ok) throw new Error(`the extension refused the rules: ${result?.detail ?? 'no answer'}`);
     console.log(`已保存 ${next.length} 条规则；改动前的规则备份在 ${backup}`);
