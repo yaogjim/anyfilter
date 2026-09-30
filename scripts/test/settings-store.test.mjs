@@ -114,6 +114,18 @@ test('a key stored for one provider is never used as the other provider’s key'
   assert.equal(activeKey(normalizeSettings({ provider: 'vercel', keys: { vercel: '  vck_trimmed  ' } })), 'vck_trimmed');
 });
 
+test('saveSettings stores the assistant choice and ignores an invalid one', async () => {
+  const handle = installChrome({ local: seed() });
+  const settings = await loadSettings();
+
+  await saveSettings({ ...settings, assistant: 'deepseek' });
+  assert.equal(handle.readLocal(SETTINGS_KEY).assistant, 'deepseek');
+
+  await saveSettings({ ...settings, assistant: 'jev' });
+  assert.equal(handle.readLocal(SETTINGS_KEY).assistant, 'deepseek');
+  assert.equal((await loadSettings()).assistant, 'deepseek');
+});
+
 test('settings changes are broadcast as normalized settings', async () => {
   installChrome({ local: seed() });
   const seen = [];

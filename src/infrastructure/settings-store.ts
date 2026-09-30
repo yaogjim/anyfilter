@@ -1,4 +1,6 @@
+import { isMachineLabellerId } from '../domain/machine-label';
 import { isProviderId } from '../domain/provider';
+import { groupIdSet, validateGroups, type RuleGroup } from '../domain/rule-group';
 import { validateRules, type Rule, type SaveRulesResult } from '../domain/rule';
 import { normalizeSettings, withRules, type Settings } from '../domain/settings';
 
@@ -54,6 +56,7 @@ export function saveSettings(settings: Settings): Promise<void> {
       threshold: normalizedThreshold(settings.threshold, current.threshold),
       provider: isProviderId(settings.provider) ? settings.provider : current.provider,
       keys: normalizedKeys(settings.keys, current.keys),
+      assistant: isMachineLabellerId(settings.assistant) ? settings.assistant : current.assistant,
       revision: Math.max(current.revision, normalizedRevision(settings.revision, current.revision)),
     };
     await chrome.storage.local.set({ [SETTINGS_KEY]: next });
@@ -73,13 +76,26 @@ export function saveReviewMode(on: boolean): Promise<void> {
 
 /** Serialized compare-and-set for rule edits. Validates first, then only writes
  * when the caller edited the revision that is still current, so two panels never
- * silently overwrite each other. */
-export function saveRules(rules: Rule[], expectedRevision: number): Promise<SaveRulesResult> {
+ * silently overwrite each other. Rules and categories are one write: a new rule
+ * may point at a category created in the same draft, and a deleted category
+ * never outlives the rules that used it. `groups` left out keeps the stored
+ * categories. */
+export function saveRules(
+  rules: Rule[],
+  expectedRevision: number,
+  groups?: RuleGroup[],
+): Promise<SaveRulesResult> {
   return enqueue(async (): Promise<SaveRulesResult> => {
     if (!Number.isInteger(expectedRevision) || expectedRevision < 0) {
       return { ok: false, error: 'invalid', detail: 'expectedRevision must be a non-negative integer' };
     }
-    const validation = validateRules(rules);
+    let nextGroups: RuleGroup[] | undefined;
+    if (groups !== undefined) {
+      const checked = validateGroups(groups);
+      if (!checked.ok) return { ok: false, error: 'invalid', detail: checked.detail };
+      nextGroups = checked.groups;
+    }
+    const validation = validateRules(rules, nextGroups && groupIdSet(nextGroups));
     if (!validation.ok) return { ok: false, error: 'invalid', detail: validation.detail };
     const stored = await chrome.storage.local.get(SETTINGS_KEY);
     const current = normalizeSettings(stored[SETTINGS_KEY]);
@@ -90,7 +106,11 @@ export function saveRules(rules: Rule[], expectedRevision: number): Promise<Save
         detail: `expected revision ${expectedRevision} but the current revision is ${current.revision}`,
       };
     }
-    const next = withRules(current, validation.rules, current.revision + 1);
+    if (nextGroups === undefined) {
+      const kept = validateRules(validation.rules, groupIdSet(current.ruleGroups));
+      if (!kept.ok) return { ok: false, error: 'invalid', detail: kept.detail };
+    }
+    const next = withRules(current, validation.rules, current.revision + 1, nextGroups);
     await chrome.storage.local.set({ [SETTINGS_KEY]: next });
     return { ok: true, settings: next };
   });

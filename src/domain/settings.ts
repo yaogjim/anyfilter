@@ -1,4 +1,5 @@
 import { BUILT_IN_CATEGORIES } from './category';
+import { isMachineLabellerId, type MachineLabellerId } from './machine-label';
 import { isProviderId, type ProviderId } from './provider';
 import {
   builtInRules,
@@ -8,6 +9,7 @@ import {
   refreshUneditedBuiltIns,
   type Rule,
 } from './rule';
+import { BUILT_IN_GROUP, coerceGroups, defaultGroups, groupIdSet, type RuleGroup } from './rule-group';
 
 export interface Settings {
   filterOn: boolean;
@@ -20,9 +22,15 @@ export interface Settings {
   /** Legacy mirror of custom rule labels. Always derived from `rules`. */
   custom: string[];
   rules: Rule[];
+  /** The categories rules are listed under, in display order. Saved together
+   * with `rules` so a rule never points at a category that was not stored. */
+  ruleGroups: RuleGroup[];
   revision: number;
   provider: ProviderId;
   keys: Record<ProviderId, string>;
+  /** Which OpenAI/DeepSeek connection drafts rules from a description. Not a
+   * secret: the key itself lives in the evaluation key record, never here. */
+  assistant: MachineLabellerId;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -32,9 +40,11 @@ export const DEFAULT_SETTINGS: Settings = {
   threshold: 0.7,
   custom: [],
   rules: builtInRules(),
+  ruleGroups: defaultGroups(),
   revision: 0,
   provider: 'vercel',
   keys: { vercel: '', typesafe: '' },
+  assistant: 'openai',
 };
 
 function stringArray(value: unknown): string[] | null {
@@ -103,10 +113,35 @@ function reconcileRules(record: Record<string, unknown>): Rule[] {
   return applyLegacyCustom(applyLegacyDisabled(base, record), record);
 }
 
+/** Gives each built-in rule that has no category its default one. Only done for
+ * a record from before categories existed: once categories are stored, a rule
+ * without one is uncategorised because the person put it there. */
+function withDefaultGroups(rules: Rule[]): Rule[] {
+  return rules.map((rule) => {
+    const group = BUILT_IN_GROUP[rule.id];
+    return rule.source === 'builtin' && rule.group === undefined && group !== undefined
+      ? { ...rule, group }
+      : rule;
+  });
+}
+
+/** A rule pointing at a category that is not stored falls back to uncategorised. */
+function withKnownGroups(rules: Rule[], groups: readonly RuleGroup[]): Rule[] {
+  const known = groupIdSet(groups);
+  return rules.map((rule) => {
+    if (rule.group === undefined || known.has(rule.group)) return rule;
+    const { group: _dropped, ...rest } = rule;
+    return rest;
+  });
+}
+
 export function normalizeSettings(raw: unknown): Settings {
   const record = asRecord(raw);
   const keys = asRecord(record.keys);
-  const rules = reconcileRules(record);
+  const storedGroups = coerceGroups(record.ruleGroups);
+  const ruleGroups = storedGroups ?? defaultGroups();
+  const reconciled = reconcileRules(record);
+  const rules = withKnownGroups(storedGroups === null ? withDefaultGroups(reconciled) : reconciled, ruleGroups);
   return {
     filterOn: typeof record.filterOn === 'boolean' ? record.filterOn : DEFAULT_SETTINGS.filterOn,
     reviewMode:
@@ -115,21 +150,29 @@ export function normalizeSettings(raw: unknown): Settings {
     threshold: normalizedThreshold(record.threshold),
     custom: rules.filter((rule) => rule.source === 'custom').map((rule) => rule.label),
     rules,
+    ruleGroups,
     revision: normalizedRevision(record.revision),
     provider: isProviderId(record.provider) ? record.provider : DEFAULT_SETTINGS.provider,
     keys: {
       vercel: typeof keys.vercel === 'string' ? keys.vercel : '',
       typesafe: typeof keys.typesafe === 'string' ? keys.typesafe : '',
     },
+    assistant: isMachineLabellerId(record.assistant) ? record.assistant : DEFAULT_SETTINGS.assistant,
   };
 }
 
 /** Builds the settings to persist for a rule edit: rules are authoritative and
  * the legacy mirrors plus revision follow. */
-export function withRules(base: Settings, rules: Rule[], revision: number): Settings {
+export function withRules(
+  base: Settings,
+  rules: Rule[],
+  revision: number,
+  ruleGroups: RuleGroup[] = base.ruleGroups,
+): Settings {
   return {
     ...base,
     rules,
+    ruleGroups,
     disabled: rules.filter((rule) => rule.source === 'builtin' && !rule.enabled).map((rule) => rule.id),
     custom: rules.filter((rule) => rule.source === 'custom').map((rule) => rule.label),
     revision,
