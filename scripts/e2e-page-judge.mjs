@@ -275,6 +275,11 @@ try {
   );
   await page.evaluate(() => document.getElementById('anyfilter-page-review').shadowRoot.querySelector('button').click());
   check(await page.evaluate(() => document.getElementById('anyfilter-page-review') === null), 'the box can be closed');
+  // Turning review mode off takes a box that is still up off the page.
+  await panel.click('[data-anyfilter-page="judge"]');
+  check(await (async () => { for (let i = 0; i < 40; i += 1) { if (await page.evaluate(() => document.getElementById('anyfilter-page-review') !== null)) return true; await sleep(150); } return false; })(), 'judging again draws the box again');
+  await worker.eval(`(async () => { const key = 'anyfilter.settings'; const current = (await chrome.storage.local.get(key))[key]; await chrome.storage.local.set({ [key]: { ...current, reviewMode: false } }); })()`);
+  check(await (async () => { for (let i = 0; i < 40; i += 1) { if (await page.evaluate(() => document.getElementById('anyfilter-page-review') === null)) return true; await sleep(150); } return false; })(), 'turning review mode off removes the box from the page');
 
   // --- a long page: truncated; the title-style rules still answer -------------------
   await page.goto(`${ORIGIN}/blog/very-long`);

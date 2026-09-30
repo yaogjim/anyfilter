@@ -132,3 +132,32 @@ export async function showPageReview(tabId: number, verdict: ArticleVerdict): Pr
     // Nothing to do: the judgement itself already succeeded.
   }
 }
+
+/** Runs inside the page: removes the box if there is one. */
+export function removePageReviewBox(): void {
+  document.getElementById('anyfilter-page-review')?.remove();
+}
+
+/**
+ * Turning review mode off takes the boxes back off the pages they were drawn on.
+ * It tries every tab; the ones the browser will not let us touch, and the ones with
+ * no box, are simply skipped.
+ */
+export async function clearPageReviewBoxes(): Promise<void> {
+  let tabs: chrome.tabs.Tab[] = [];
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch {
+    return;
+  }
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (tab.id === undefined) return;
+      try {
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: removePageReviewBox });
+      } catch {
+        // No access to this tab.
+      }
+    }),
+  );
+}

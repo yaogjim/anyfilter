@@ -24,7 +24,7 @@ import {
 } from '../infrastructure/capture-store';
 import { HN_PATTERN } from '../domain/hn';
 import { judgePage } from '../infrastructure/article-judge';
-import { showPageReview } from '../infrastructure/page-review';
+import { clearPageReviewBoxes, showPageReview } from '../infrastructure/page-review';
 import { chromeAutoDeps, createAutoRunner } from '../infrastructure/auto-mode';
 import { chromeSiteScriptDeps, createSiteScripts } from '../infrastructure/site-scripts';
 import { recordToolbarClick } from '../infrastructure/toolbar-click';
@@ -56,7 +56,7 @@ import {
 import { updatePanelState } from '../infrastructure/panel-state-store';
 import { previewRules } from '../infrastructure/rule-preview';
 import { forgetScores } from '../infrastructure/score-cache';
-import { saveRules } from '../infrastructure/settings-store';
+import { loadSettings, onSettingsChanged, saveRules } from '../infrastructure/settings-store';
 import type { JudgePageResult } from '../domain/article-judgement';
 import type { ReviewSaveResult } from '../domain/review-record';
 import { assertNever } from '../lib/assert-never';
@@ -330,6 +330,15 @@ async function enablePanel(): Promise<void> {
 }
 
 export default defineBackground(() => {
+  // Review mode turned off takes the boxes it drew on judged pages back off.
+  let reviewWasOn: boolean | null = null;
+  void loadSettings().then((settings) => {
+    reviewWasOn ??= settings.reviewMode;
+  });
+  onSettingsChanged((next) => {
+    if (reviewWasOn === true && !next.reviewMode) void clearPageReviewBoxes();
+    reviewWasOn = next.reviewMode;
+  });
   // The icon opens the panel from `action.onClicked`, not through the browser's
   // built-in `openPanelOnActionClick`. Only the first grants `activeTab` on the
   // tab that was clicked, and `activeTab` is what lets "judge this page" read a
