@@ -38,7 +38,12 @@ export const shellEn = {
 
   // Hidden-post sections.
   'shell.hidden.postsTitle': 'Posts hidden',
-  'shell.hidden.repliesTitle': 'Replies hidden',
+  'shell.hidden.tabs': 'Hidden items',
+  'shell.hidden.tabPosts': 'Posts {count}',
+  'shell.hidden.tabReplies': 'Replies {count}',
+  'shell.hidden.groupBy': 'Group by',
+  'shell.hidden.byRule': 'Rule',
+  'shell.hidden.byCategory': 'Category',
   'shell.hidden.noneYet': 'None yet.',
   'shell.hidden.nothingYet':
     'Nothing hidden yet. Scroll your timeline to start.',
@@ -47,6 +52,9 @@ export const shellEn = {
   'shell.hidden.putBack': 'Put back in feed',
   'shell.hidden.openOnX': 'Open on X ↗',
 
+  // Home banner shown when filtering cannot work until something is configured.
+  'shell.banner.configure': 'Configure',
+
   // Overview tiles.
   'shell.tiles.hidden': 'Hidden posts',
   'shell.tiles.kept': 'Kept posts',
@@ -54,6 +62,7 @@ export const shellEn = {
   'shell.tiles.timeSaved': 'Time saved',
   'shell.tiles.spent': 'Spent on Jev',
   'shell.tiles.tokens': 'Tokens used',
+  'shell.tiles.more': 'Other figures',
 
   // Reason accordion.
   'shell.reason.inConversation': 'In a conversation',
@@ -69,12 +78,9 @@ export const shellEn = {
     'Filtering on X. Provider and threshold save as you edit; rules save when applied.',
   'shell.options.sections': 'Settings sections',
   'shell.options.onThisPage': 'On this page',
-  'shell.options.howTitle': 'How these settings work',
-  'shell.options.howBody':
-    'Pick the model provider and paste your key, set how confident the model must be before a post is hidden, then tune the rules AnyFilter asks about. Data controls only clear what has already been hidden and counted — your key, rules and threshold stay.',
   'shell.nav.appearance': 'Appearance',
-  'shell.nav.provider': 'Provider & key',
-  'shell.nav.threshold': 'Threshold',
+  'shell.nav.models': 'Models & keys',
+  'shell.nav.behavior': 'Filtering',
   'shell.nav.rules': 'Rules',
   'shell.nav.capture': 'Verification samples',
   'shell.nav.data': 'Data',

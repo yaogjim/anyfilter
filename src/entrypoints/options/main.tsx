@@ -10,23 +10,26 @@ import {
 import { loadPanelState, onPanelStateChanged } from '../../infrastructure/panel-state-store';
 import { loadReviewCount, loadReviewStore, onReviewRecordsChanged } from '../../infrastructure/review-store';
 import { loadSettings, onSettingsChanged, saveSettings } from '../../infrastructure/settings-store';
-import { CaptureSection } from '../../ui/sidepanel/CaptureSection';
 import type { PanelGateway } from '../../ui/sidepanel/PanelGateway';
 import { SettingsSection } from '../../ui/sidepanel/SettingsSection';
+import { useScrollSpy } from '../../ui/sidepanel/use-scroll-spy';
 import { useSubscribedValue } from '../../ui/sidepanel/use-subscribed-value';
 import { LanguageProvider, useLanguage, type TranslationKey } from '../../ui/language';
 
-const NAV: ReadonlyArray<{ id: string; labelKey: TranslationKey }> = [
+/** Same order as the sections in `SettingsSection`. `minor` items are the
+ * rarely used ones at the end, set apart from the rest by a divider. */
+const NAV: ReadonlyArray<{ id: string; labelKey: TranslationKey; minor?: boolean }> = [
   { id: 'appearance', labelKey: 'shell.nav.appearance' },
-  { id: 'provider', labelKey: 'shell.nav.provider' },
-  { id: 'threshold', labelKey: 'shell.nav.threshold' },
+  { id: 'models', labelKey: 'shell.nav.models' },
+  { id: 'behavior', labelKey: 'shell.nav.behavior' },
   { id: 'rules', labelKey: 'shell.nav.rules' },
-  { id: 'capture', labelKey: 'shell.nav.capture' },
-  { id: 'data', labelKey: 'shell.nav.data' },
+  { id: 'capture', labelKey: 'shell.nav.capture', minor: true },
+  { id: 'data', labelKey: 'shell.nav.data', minor: true },
 ];
+const NAV_IDS = NAV.map((item) => item.id);
 
 const LINK_CLASS =
-  'block rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-ink-2 transition hover:bg-white hover:text-ink';
+  'block rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition hover:bg-white hover:text-ink';
 
 function Shield() {
   return (
@@ -54,6 +57,18 @@ function Shield() {
 function OptionsPage({ gateway }: { gateway: PanelGateway }) {
   const { t } = useLanguage();
   const settings = useSubscribedValue(gateway.loadSettings, gateway.onSettingsChanged);
+  const { active, select } = useScrollSpy(NAV_IDS, settings.status === 'ready');
+
+  const navLink = (item: (typeof NAV)[number], className: string) => (
+    <a
+      href={`#${item.id}`}
+      className={className}
+      aria-current={active === item.id ? 'location' : undefined}
+      onClick={() => select(item.id)}
+    >
+      {t(item.labelKey)}
+    </a>
+  );
 
   const shell = (body: React.ReactNode) => (
     <div className="min-h-screen bg-surface">
@@ -69,6 +84,25 @@ function OptionsPage({ gateway }: { gateway: PanelGateway }) {
             </p>
           </div>
         </div>
+        <nav
+          className="border-t border-line lg:hidden"
+          aria-label={t('shell.options.sections')}
+        >
+          <ul className="m-0 flex list-none gap-1.5 overflow-x-auto px-3 py-2 sm:px-6">
+            {NAV.map((item) => (
+              <li key={item.id} className="flex-none">
+                {navLink(
+                  item,
+                  `block rounded-full border px-2.5 py-1 text-[12px] font-semibold ${
+                    active === item.id
+                      ? 'border-ink bg-ink text-white'
+                      : 'border-line bg-surface text-ink-2'
+                  }`,
+                )}
+              </li>
+            ))}
+          </ul>
+        </nav>
       </header>
       <div className="mx-auto flex max-w-7xl gap-6 px-3 py-6 sm:px-6">
         <aside className="hidden w-44 flex-none lg:block">
@@ -78,10 +112,11 @@ function OptionsPage({ gateway }: { gateway: PanelGateway }) {
             </p>
             <ul className="m-0 list-none space-y-1 p-0">
               {NAV.map((item) => (
-                <li key={item.id}>
-                  <a href={`#${item.id}`} className={LINK_CLASS}>
-                    {t(item.labelKey)}
-                  </a>
+                <li key={item.id} className={item.minor === true && NAV[NAV.indexOf(item) - 1]?.minor !== true ? 'mt-2 border-t border-line pt-2' : undefined}>
+                  {navLink(
+                    item,
+                    `${LINK_CLASS} ${active === item.id ? 'bg-white text-ink shadow-sm' : 'text-ink-2'}`,
+                  )}
                 </li>
               ))}
             </ul>
@@ -102,40 +137,15 @@ function OptionsPage({ gateway }: { gateway: PanelGateway }) {
   const current = settings.value;
 
   return shell(
-    <>
-      <section className="mb-6 rounded-2xl border border-line bg-white p-5">
-        <h2 className="m-0 text-[15px] font-bold text-ink">
-          {t('shell.options.howTitle')}
-        </h2>
-        <p className="mb-0 mt-1.5 text-[13px] text-ink-2">
-          {t('shell.options.howBody')}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-1.5 lg:hidden">
-          {NAV.map((item) => (
-            <a
-              key={item.id}
-              href={`#${item.id}`}
-              className="rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2"
-            >
-              {t(item.labelKey)}
-            </a>
-          ))}
-        </div>
-      </section>
-      <div>
-        <SettingsSection
-          settings={current}
-          onChange={(patch) => void gateway.saveSettings({ ...current, ...patch })}
-          onClearData={gateway.clearData}
-          onClearHidden={gateway.clearHidden}
-          onSaveRules={gateway.saveRules}
-          onPreview={gateway.previewRule}
-        />
-      </div>
-      <div className="mt-6 rounded-2xl border border-line bg-white p-5">
-        <CaptureSection gateway={gateway} />
-      </div>
-    </>,
+    <SettingsSection
+      gateway={gateway}
+      settings={current}
+      onChange={(patch) => void gateway.saveSettings({ ...current, ...patch })}
+      onClearData={gateway.clearData}
+      onClearHidden={gateway.clearHidden}
+      onSaveRules={gateway.saveRules}
+      onPreview={gateway.previewRule}
+    />,
   );
 }
 
@@ -147,8 +157,9 @@ const gateway: PanelGateway = {
   onSettingsChanged,
   loadPanelState,
   onPanelStateChanged,
-  saveRules: (rules, expectedRevision) => client.saveRules(rules, expectedRevision),
+  saveRules: (rules, expectedRevision, groups) => client.saveRules(rules, expectedRevision, groups),
   previewRule: (input) => client.previewRule(input),
+  generateRule: (input) => client.generateRule(input),
   override: (postId, shown) => client.override(postId, shown),
   clearData: () => client.clearData(),
   clearHidden: (kind) => client.clearHidden(kind),

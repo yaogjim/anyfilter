@@ -1,18 +1,73 @@
 import { useEffect, useState } from 'react';
-import { PROVIDERS } from '../../domain/provider';
 import type { PostKind } from '../../domain/post';
 import type { PreviewInput, PreviewResult, Rule, SaveRulesResult } from '../../domain/rule';
+import type { RuleGroup } from '../../domain/rule-group';
 import type { Settings } from '../../domain/settings';
 import { useLanguage } from '../language';
+import { AssistantTabs } from './AssistantTabs';
+import { CaptureSection } from './CaptureSection';
+import type { PanelGateway } from './PanelGateway';
+import { ProviderTabs } from './ProviderTabs';
 import { ReviewSwitch } from './ReviewSwitch';
+import { RuleGenerator } from './RuleGenerator';
 import { RuleManager } from './RuleManager';
 
 const INPUT_CLASS = 'w-full rounded-lg border border-[#cfd9de] bg-white px-2 py-1.5 text-[13px]';
 const SUBHEADING_CLASS = 'mb-2 text-[15px] font-bold text-ink';
 const BUTTON_CLASS = 'rounded-lg border border-[#cfd9de] bg-white px-3 py-1.5 font-bold';
-const CARD_CLASS = 'scroll-mt-24 rounded-xl border border-line bg-white p-4';
+const DANGER_BUTTON_CLASS =
+  'rounded-lg border border-[#f4212e] bg-white px-3 py-1.5 font-bold text-[#f4212e]';
+const CARD_CLASS = 'scroll-mt-32 rounded-xl border border-line bg-white p-4';
+
+/** Two-step "clear everything": the first press turns the button into a
+ * confirm/cancel pair in place, so nothing is wiped by one stray click and no
+ * browser dialog is involved. */
+function ClearEverything({ onClear }: { onClear: () => Promise<void> }) {
+  const { t } = useLanguage();
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        className={DANGER_BUTTON_CLASS}
+        data-anyfilter-clear="start"
+        onClick={() => setConfirming(true)}
+      >
+        {t('settings.clearEverything')}
+      </button>
+    );
+  }
+  return (
+    <span
+      className="inline-flex flex-wrap items-center gap-1.5"
+      role="group"
+      aria-label={t('settings.clearEverythingPrompt')}
+    >
+      <button
+        type="button"
+        className="rounded-lg border border-[#f4212e] bg-[#f4212e] px-3 py-1.5 font-bold text-white"
+        data-anyfilter-clear="confirm"
+        onClick={() => {
+          setConfirming(false);
+          void onClear();
+        }}
+      >
+        {t('settings.clearEverythingConfirm')}
+      </button>
+      <button
+        type="button"
+        className={BUTTON_CLASS}
+        data-anyfilter-clear="cancel"
+        onClick={() => setConfirming(false)}
+      >
+        {t('settings.cancel')}
+      </button>
+    </span>
+  );
+}
 
 export function SettingsSection({
+  gateway,
   settings,
   onChange,
   onClearData,
@@ -20,15 +75,15 @@ export function SettingsSection({
   onSaveRules,
   onPreview,
 }: {
+  gateway: PanelGateway;
   settings: Settings;
   onChange: (patch: Partial<Settings>) => void;
   onClearData: () => Promise<void>;
   onClearHidden: (kind: PostKind) => Promise<void>;
-  onSaveRules: (rules: Rule[], expectedRevision: number) => Promise<SaveRulesResult>;
+  onSaveRules: (rules: Rule[], expectedRevision: number, groups: RuleGroup[]) => Promise<SaveRulesResult>;
   onPreview: (input: PreviewInput) => Promise<PreviewResult>;
 }) {
   const { t, locale, setLocale, saving: savingLocale, error: localeError } = useLanguage();
-  const provider = PROVIDERS.find((candidate) => candidate.id === settings.provider) ?? PROVIDERS[0];
   const [rulesDirty, setRulesDirty] = useState(false);
 
   // Closing or reloading the options tab would drop an unsaved rule draft.
@@ -75,117 +130,103 @@ export function SettingsSection({
         )}
       </section>
 
-      <ReviewSwitch
-        scope="settings"
-        on={settings.reviewMode}
-        onChange={(reviewMode) => onChange({ reviewMode })}
-      />
-
-      <section id="provider" className={CARD_CLASS}>
-        <h2 className={SUBHEADING_CLASS}>{t('settings.provider')}</h2>
-        <div
-          className="flex flex-wrap rounded-lg bg-surface p-0.5"
-          role="radiogroup"
-          aria-label={t('settings.provider')}
-        >
-          {PROVIDERS.map((candidate) => (
-            <button
-              key={candidate.id}
-              type="button"
-              role="radio"
-              aria-checked={candidate.id === settings.provider}
-              className={`flex-1 rounded-md py-1.5 text-xs font-semibold transition ${
-                candidate.id === settings.provider
-                  ? 'bg-white text-ink shadow-sm'
-                  : 'text-ink-2 hover:text-ink'
-              }`}
-              onClick={() => onChange({ provider: candidate.id })}
-            >
-              {candidate.label}
-            </button>
-          ))}
+      <section id="models" className="grid scroll-mt-32 gap-4">
+        <div className={CARD_CLASS}>
+          <h2 className={SUBHEADING_CLASS}>{t('settings.filterModel')}</h2>
+          <ProviderTabs settings={settings} onChange={onChange} />
         </div>
-        <label className="sr-only" htmlFor="anyfilter-key">
-          {t('settings.apiKey')}
-        </label>
-        <input
-          id="anyfilter-key"
-          type="password"
-          className={`${INPUT_CLASS} mt-1.5`}
-          placeholder={t('settings.apiKeyPlaceholder', { hint: provider.keyHint })}
-          value={settings.keys[settings.provider]}
-          onChange={(event) =>
-            onChange({ keys: { ...settings.keys, [settings.provider]: event.target.value } })
-          }
-        />
-        <p className="mt-1 text-[11px] text-ink-2">
-          {t('settings.apiKeyPrivacyNote')}
-        </p>
+        <div className={CARD_CLASS} data-anyfilter-assistant="section">
+          <h2 className={SUBHEADING_CLASS}>{t('settings.assistantModel')}</h2>
+          <AssistantTabs gateway={gateway} settings={settings} onChange={onChange} />
+        </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section id="threshold" className={CARD_CLASS}>
-          <h2 className={SUBHEADING_CLASS}>{t('settings.threshold')}</h2>
-          <label className="block">
-            <span className="text-ink-2">
-              {t('settings.thresholdProbabilityAtLeast')}{' '}
-              <b className="text-ink tabular-nums">{Math.round(settings.threshold * 100)}%</b>
-            </span>
-            <input
-              type="range"
-              className="anyfilter-range mt-1 w-full"
-              min={50}
-              max={95}
-              step={5}
-              value={Math.round(settings.threshold * 100)}
-              onChange={(event) => onChange({ threshold: Number(event.target.value) / 100 })}
-            />
-            <span className="flex justify-between text-[11px] text-ink-2">
-              <span>{t('settings.hideMore')}</span>
-              <span>{t('settings.hideLess')}</span>
-            </span>
-          </label>
-          <p className="mt-1 text-[11px] text-ink-2">
-            {t('settings.thresholdNote')}
-          </p>
-        </section>
-
-        <section id="data" className={CARD_CLASS}>
-          <h2 className={SUBHEADING_CLASS}>{t('settings.data')}</h2>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              className={BUTTON_CLASS}
-              onClick={() => void onClearHidden('post')}
-            >
-              {t('settings.clearHiddenPosts')}
-            </button>
-            <button
-              type="button"
-              className={BUTTON_CLASS}
-              onClick={() => void onClearHidden('reply')}
-            >
-              {t('settings.clearHiddenReplies')}
-            </button>
-            <button type="button" className={BUTTON_CLASS} onClick={() => void onClearData()}>
-              {t('settings.clearEverything')}
-            </button>
-          </div>
-          <p className="mt-1 text-[11px] text-ink-2">
-            {t('settings.clearEverythingNote')}
-          </p>
-        </section>
-      </div>
+      <section id="behavior" className={CARD_CLASS}>
+        <h2 className={SUBHEADING_CLASS}>{t('settings.behavior')}</h2>
+        <label className="block">
+          <span className="text-ink-2">
+            {t('settings.thresholdProbabilityAtLeast')}{' '}
+            <b className="text-ink tabular-nums">{Math.round(settings.threshold * 100)}%</b>
+          </span>
+          <input
+            type="range"
+            className="anyfilter-range mt-1 w-full"
+            min={50}
+            max={95}
+            step={5}
+            value={Math.round(settings.threshold * 100)}
+            onChange={(event) => onChange({ threshold: Number(event.target.value) / 100 })}
+          />
+          <span className="flex justify-between text-[11px] text-ink-2">
+            <span>{t('settings.hideMore')}</span>
+            <span>{t('settings.hideLess')}</span>
+          </span>
+        </label>
+        <p className="mt-1 text-[11px] text-ink-2">{t('settings.thresholdNote')}</p>
+        <hr className="my-3 border-0 border-t border-line" />
+        <ReviewSwitch
+          scope="settings"
+          on={settings.reviewMode}
+          onChange={(reviewMode) => onChange({ reviewMode })}
+        />
+      </section>
 
       <section id="rules" className={`${CARD_CLASS} @container p-3`}>
         <RuleManager
           rules={settings.rules}
+          groups={settings.ruleGroups}
           revision={settings.revision}
           threshold={settings.threshold}
           onSaveRules={onSaveRules}
           onPreview={onPreview}
           onDirtyChange={setRulesDirty}
+          renderAboveTabs={({ rule, patch, draft, hooks }) =>
+            // Only a rule that has never been saved: a stored rule is edited by hand.
+            rule.source === 'custom' && !settings.rules.some((saved) => saved.id === rule.id) ? (
+              <RuleGenerator
+                gateway={gateway}
+                assistant={settings.assistant}
+                rule={rule}
+                patch={patch}
+                draft={draft}
+                hooks={hooks}
+              />
+            ) : null
+          }
         />
+      </section>
+
+      <div className="flex items-center gap-3 px-1 pt-2" role="separator">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-ink-2">
+          {t('settings.lessUsed')}
+        </span>
+        <span className="h-px flex-1 bg-line" aria-hidden="true" />
+      </div>
+
+      <div className={CARD_CLASS}>
+        <CaptureSection gateway={gateway} />
+      </div>
+
+      <section id="data" className={CARD_CLASS}>
+        <h2 className={SUBHEADING_CLASS}>{t('settings.data')}</h2>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            className={BUTTON_CLASS}
+            onClick={() => void onClearHidden('post')}
+          >
+            {t('settings.clearHiddenPosts')}
+          </button>
+          <button
+            type="button"
+            className={BUTTON_CLASS}
+            onClick={() => void onClearHidden('reply')}
+          >
+            {t('settings.clearHiddenReplies')}
+          </button>
+          <ClearEverything onClear={onClearData} />
+        </div>
+        <p className="mt-1 text-[11px] text-ink-2">{t('settings.clearEverythingNote')}</p>
       </section>
     </div>
   );

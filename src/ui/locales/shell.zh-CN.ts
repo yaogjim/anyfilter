@@ -28,7 +28,12 @@ export const shellZh = {
   'shell.filterOn': '启用过滤',
 
   'shell.hidden.postsTitle': '隐藏的帖子',
-  'shell.hidden.repliesTitle': '隐藏的回复',
+  'shell.hidden.tabs': '已隐藏内容',
+  'shell.hidden.tabPosts': '帖子 {count}',
+  'shell.hidden.tabReplies': '回复 {count}',
+  'shell.hidden.groupBy': '分组方式',
+  'shell.hidden.byRule': '按规则',
+  'shell.hidden.byCategory': '按分类',
   'shell.hidden.noneYet': '暂无内容。',
   'shell.hidden.nothingYet': '暂无隐藏内容，浏览信息流即可开始过滤。',
   'shell.hidden.adBadge': '广告',
@@ -36,12 +41,16 @@ export const shellZh = {
   'shell.hidden.putBack': '恢复到信息流',
   'shell.hidden.openOnX': '在 X 中打开 ↗',
 
+  // 主页横幅：需要先配置才能过滤时显示。
+  'shell.banner.configure': '去配置',
+
   'shell.tiles.hidden': '已隐藏',
   'shell.tiles.kept': '已保留',
   'shell.tiles.scanned': '已扫描',
   'shell.tiles.timeSaved': '节省时间',
   'shell.tiles.spent': 'Jev 费用',
   'shell.tiles.tokens': '令牌用量',
+  'shell.tiles.more': '其他数据',
 
   'shell.reason.inConversation': '对话中的回复',
   'shell.reason.repliesUnder': '回复于',
@@ -53,12 +62,9 @@ export const shellZh = {
   'shell.options.subtitle': '在 X 上进行过滤。服务提供方与阈值随编辑保存；规则在应用时保存。',
   'shell.options.sections': '设置分区',
   'shell.options.onThisPage': '本页内容',
-  'shell.options.howTitle': '这些设置如何工作',
-  'shell.options.howBody':
-    '选择模型服务提供方并粘贴密钥，设置帖子被隐藏前模型需要达到的置信度，然后调整 AnyFilter 询问的规则。数据操作只会清除已被隐藏和计数的内容，密钥、规则与阈值都会保留。',
   'shell.nav.appearance': '外观',
-  'shell.nav.provider': '服务提供方与密钥',
-  'shell.nav.threshold': '阈值',
+  'shell.nav.models': '模型与密钥',
+  'shell.nav.behavior': '过滤行为',
   'shell.nav.rules': '规则',
   'shell.nav.capture': '验证样本',
   'shell.nav.data': '数据',

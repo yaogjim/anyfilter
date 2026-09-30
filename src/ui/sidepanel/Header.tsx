@@ -1,24 +1,12 @@
 import { scannedCount, type PanelState } from '../../domain/panel-state';
 import { useLanguage, type Translate } from '../language';
-import { activeKey, type Settings } from '../../domain/settings';
+import type { Settings } from '../../domain/settings';
 
+/** Only the filter being off is said here. A missing key or a failing provider is
+ * the home view's banner, so it is stated once, next to the way to fix it. */
 function statusText(settings: Settings, state: PanelState, t: Translate): string {
   if (!settings.filterOn) return t('shell.status.filterOff', { count: scannedCount(state) });
-  if (activeKey(settings) === '') return t('shell.status.addApiKey');
-  const failure = state.lastFailure;
-  if (!failure) return '';
-  switch (failure.error) {
-    case 'no-key':
-      return t('shell.status.addApiKey');
-    case 'rate-limited':
-      return t('shell.status.failureRateLimited');
-    case 'auth':
-      return t('shell.status.failureAuth');
-    case 'network':
-      return t('shell.status.failureNetwork', { detail: failure.detail });
-    case 'bad-response':
-      return t('shell.status.failureBadResponse', { detail: failure.detail });
-  }
+  return '';
 }
 
 export type PanelView = 'home' | 'page' | 'settings' | 'verification';
@@ -98,7 +86,7 @@ export function Header({
       {status !== '' && (
         <p
           role="status"
-          className={`mb-0 mt-2 text-xs ${state.lastFailure && settings.filterOn ? 'text-hide' : 'text-ink-2'}`}
+          className="mb-0 mt-2 text-xs text-ink-2"
         >
           {status}
         </p>
