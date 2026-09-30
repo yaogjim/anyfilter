@@ -161,19 +161,15 @@ check(ask?.state.text === 'Ask HN: What are you reading?', 'a post that links to
 const panel = await context.newPage();
 await panel.setViewportSize({ width: 380, height: 900 });
 await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+// Sites are turned on in one place: the "This page" view, next to the authorised sites.
+check((await panel.locator('[data-anyfilter-site="hn"]').count()) === 0, 'the overview does not repeat the sites card');
+await panel.locator('[data-anyfilter-nav="page"]').click();
 check(
   await waitFor(() => panel.locator('[data-anyfilter-site="hn"]').count().then((n) => n === 1), 'sites card'),
   'the panel lists Hacker News under other sites',
 );
 check((await panel.locator('[data-anyfilter-site="hn"]').getAttribute('data-anyfilter-site-on')) === 'true', 'and shows it as on, because the browser grants it');
 check((await panel.locator('[data-anyfilter-sites="toggle"]').getAttribute('aria-pressed')) === 'true', 'the switch agrees');
-
-// The card is also on the "This page" view, where a person lands looking for it.
-await panel.locator('[data-anyfilter-nav="page"]').click();
-check(
-  await waitFor(() => panel.locator('[data-anyfilter-site="hn"]').count().then((n) => n === 1), 'sites card on page view'),
-  'the "This page" view shows the same Hacker News switch',
-);
 await panel.locator('[data-anyfilter-nav="home"]').click();
 
 check(

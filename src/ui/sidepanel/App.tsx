@@ -75,8 +75,7 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
       {view === 'page' && (
         <>
           <PageSection gateway={gateway} />
-          {/* Also here, not only on the overview: this is the view a person is on when
-              they open the panel on a Hacker News tab and look for the switch. */}
+          {/* The one place sites are turned on, next to the list of authorised sites. */}
           <SitesSection gateway={gateway} />
           <AutoSection gateway={gateway} />
         </>
@@ -88,7 +87,6 @@ export function App({ gateway }: { gateway: PanelGateway & PageGateway }) {
           </section>
           <ReviewSwitch scope="home" on={current.reviewMode} onChange={(reviewMode) => updateSettings({ reviewMode })} />
           <HiddenGroups state={state} labelOrder={labelOrder} onOverride={gateway.override} />
-          <SitesSection gateway={gateway} />
         </>
       )}
       {settingsVisited && (
