@@ -283,6 +283,10 @@ try {
   await page.goto(`${ORIGIN}/blog/promo-launch?utm=feed`);
   await settle();
   check(modelRequests.length === 1, 'reloading, or adding a query string, does not ask again');
+  check(await until(async () => (await badgeOf(`${ORIGIN}/blog/promo-launch`)) === 'MKT', 'badge after reload'), 'and the badge is still on after the reload (the browser drops it on navigation)');
+  await page.reload();
+  await settle();
+  check(await until(async () => (await badgeOf(`${ORIGIN}/blog/promo-launch`)) === 'MKT', 'badge after second reload'), 'a plain reload of the same address also brings the badge back');
 
   // --- a clean page: judged, no badge ------------------------------------------------------
   await page.goto(`${ORIGIN}/blog/careful-essay`);

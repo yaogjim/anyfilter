@@ -325,7 +325,13 @@ export function createAutoRunner(deps: AutoDeps): AutoRunner {
       const ready = await usable(tabId);
       if (ready === null) return;
       const pageKey = pageKeyOf(ready.url);
-      if (attempted.get(tabId) === pageKey) return;
+      if (attempted.get(tabId) === pageKey) {
+        // Already handled in this worker's life. The browser drops a tab's badge when it
+        // navigates (a reload too), so put the stored answer back; ask nobody.
+        const known = (await deps.loadResults()).tabs[String(tabId)];
+        if (known?.url === pageKey && known.result.ok) deps.showBadge(tabId, known.result.verdict);
+        return;
+      }
       attempted.set(tabId, pageKey);
       deps.clearBadge(tabId);
       enqueue(tabId);

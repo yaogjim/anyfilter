@@ -142,6 +142,16 @@ test('a reload, a new query string or coming back to the tab does not ask again'
   assert.equal(w.state.dayCount, 1);
 });
 
+test('a reload puts the badge back, because the browser drops a tab\'s badge on navigation', async () => {
+  const w = world();
+  w.tab(1, 'https://blog.example.com/post/1');
+  await w.go(1);
+  w.badges.length = 0; // what the browser did to the tab's badge
+  await w.go(1);
+  assert.equal(w.classified.length, 1, 'still one paid request');
+  assert.deepEqual(w.badges, [{ tabId: 1, top: 'marketing' }]);
+});
+
 test('a worker restart does not repeat a paid judgement; it shows the stored one again', async () => {
   const w = world();
   w.tab(1, 'https://blog.example.com/post/1');
